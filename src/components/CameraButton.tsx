@@ -1,8 +1,14 @@
 import { useRef, useCallback, useState } from 'react';
-import { PhotoEntry } from '@/types';
+
+export interface CaptureResult {
+  photo: string;
+  thumbnail: string;
+  lat: number;
+  lng: number;
+}
 
 interface Props {
-  onCapture: (entry: PhotoEntry) => void;
+  onCapture: (result: CaptureResult) => void;
 }
 
 async function compressImage(file: File): Promise<{ full: string; thumb: string }> {
@@ -18,8 +24,7 @@ async function compressImage(file: File): Promise<{ full: string; thumb: string 
       const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
       canvas.width = Math.round(img.width * ratio);
       canvas.height = Math.round(img.height * ratio);
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
       const full = canvas.toDataURL('image/jpeg', 0.75);
 
       const tCanvas = document.createElement('canvas');
@@ -27,11 +32,13 @@ async function compressImage(file: File): Promise<{ full: string; thumb: string 
       tCanvas.height = THUMB;
       const tCtx = tCanvas.getContext('2d')!;
       const side = Math.min(canvas.width, canvas.height);
-      const sx = (canvas.width - side) / 2;
-      const sy = (canvas.height - side) / 2;
-      tCtx.drawImage(canvas, sx, sy, side, side, 0, 0, THUMB, THUMB);
+      tCtx.drawImage(
+        canvas,
+        (canvas.width - side) / 2,
+        (canvas.height - side) / 2,
+        side, side, 0, 0, THUMB, THUMB
+      );
       const thumb = tCanvas.toDataURL('image/jpeg', 0.6);
-
       resolve({ full, thumb });
     };
     img.onerror = reject;
@@ -57,31 +64,33 @@ export default function CameraButton({ onCapture }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [capturing, setCapturing] = useState(false);
 
-  const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCapturing(true);
-    try {
-      const [coords, { full, thumb }] = await Promise.all([
-        getGeolocation(),
-        compressImage(file),
-      ]);
-      const entry: PhotoEntry = {
-        id: crypto.randomUUID(),
-        base64: full,
-        thumbnail: thumb,
-        lat: coords.latitude,
-        lng: coords.longitude,
-        timestamp: Date.now(),
-      };
-      onCapture(entry);
-    } catch {
-      alert('No se pudo obtener la ubicación. Permite el acceso a la cámara y ubicación.');
-    } finally {
-      setCapturing(false);
-      if (inputRef.current) inputRef.current.value = '';
-    }
-  }, [onCapture]);
+  const handleFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setCapturing(true);
+      try {
+        const [coords, { full, thumb }] = await Promise.all([
+          getGeolocation(),
+          compressImage(file),
+        ]);
+        onCapture({
+          photo: full,
+          thumbnail: thumb,
+          lat: coords.latitude,
+          lng: coords.longitude,
+        });
+      } catch {
+        alert(
+          'No se pudo obtener la ubicación. Permite el acceso a la cámara y a la ubicación.'
+        );
+      } finally {
+        setCapturing(false);
+        if (inputRef.current) inputRef.current.value = '';
+      }
+    },
+    [onCapture]
+  );
 
   return (
     <>
@@ -96,24 +105,29 @@ export default function CameraButton({ onCapture }: Props) {
       <button
         onClick={() => inputRef.current?.click()}
         disabled={capturing}
+        aria-label="Reportar incidencia"
         style={{
           position: 'fixed',
-          bottom: '2rem',
-          right: '2rem',
-          zIndex: 1000,
+          bottom: '1.8rem',
+          right: '1.5rem',
+          zIndex: 900,
           width: '64px',
           height: '64px',
           borderRadius: '50%',
-          background: capturing ? '#444' : '#16213e',
-          color: 'white',
-          fontSize: '28px',
-          border: '3px solid rgba(255,255,255,0.2)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          background: capturing ? '#333' : 'var(--accent)',
+          color: capturing ? '#888' : '#0d0f1a',
+          fontSize: '26px',
+          border: 'none',
+          boxShadow: capturing
+            ? 'none'
+            : '0 0 0 4px rgba(0,255,136,0.2), 0 4px 20px rgba(0,255,136,0.4)',
           cursor: capturing ? 'wait' : 'pointer',
           touchAction: 'manipulation',
-          transition: 'background 0.2s',
+          transition: 'all 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
-        aria-label="Tomar foto"
       >
         {capturing ? '⏳' : '📷'}
       </button>
