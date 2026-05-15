@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# PWA generated files
+public/sw.js
+public/workbox-*.js
+public/worker-*.js
+public/fallback-*.js
+
+# env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
