@@ -15,8 +15,12 @@ export default function MapView({ photos, onMarkerClick }: Props) {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    let destroyed = false;
+
     import('leaflet').then((L) => {
-      const map = L.map(containerRef.current!, {
+      if (destroyed || !containerRef.current || mapRef.current) return;
+
+      const map = L.map(containerRef.current, {
         center: [40.416, -3.703],
         zoom: 13,
         zoomControl: true,
@@ -29,7 +33,7 @@ export default function MapView({ photos, onMarkerClick }: Props) {
 
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
-          map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+          if (!destroyed) map.setView([pos.coords.latitude, pos.coords.longitude], 15);
         });
       }
 
@@ -37,6 +41,7 @@ export default function MapView({ photos, onMarkerClick }: Props) {
     });
 
     return () => {
+      destroyed = true;
       mapRef.current?.remove();
       mapRef.current = null;
       markersRef.current.clear();

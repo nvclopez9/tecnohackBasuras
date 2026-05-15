@@ -11,7 +11,10 @@
       "Bash(git remote *)",
       "Bash(git push *)",
       "Bash(gh auth *)",
-      "Read(//home/pcdev/.ssh/**)"
+      "Read(//home/pcdev/.ssh/**)",
+      "Bash(npm run *)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(fuser -k 3000/tcp 3001/tcp)"
     ]
   }
 }
