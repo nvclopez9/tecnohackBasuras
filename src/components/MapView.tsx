@@ -1,173 +1,180 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Map as LMap, Marker } from 'leaflet';
-import { Report } from '@/types';
-import { containerMeta, statusMeta } from '@/lib/constants';
+import { Bin, Report, ContainerType } from '@/types';
+import { SC_TENERIFE } from '@/lib/theme';
+import { pinHtml } from '@/lib/pin';
 
 interface Props {
-  reports: Report[];
-  onMarkerClick: (reportId: string) => void;
+  bins?: Bin[];
+  reports?: Report[];
+  selectedId?: string | null;
+  onBinClick?: (bin: Bin) => void;
+  onReportClick?: (report: Report) => void;
   showHeatmap?: boolean;
+  containerFilter?: Set<ContainerType> | null;
+  variant?: 'light' | 'voyager';
 }
 
-function markerHtml(report: Report): string {
-  const cm = containerMeta(report.containerType);
-  const sm = statusMeta(report.status);
-  const glow =
-    report.priority === 'alta'
-      ? `box-shadow:0 0 0 3px ${cm.color},0 0 16px ${cm.color}88;`
-      : report.priority === 'media'
-      ? `box-shadow:0 0 0 2px ${cm.color};`
-      : `box-shadow:0 0 0 1px ${cm.color}88;`;
-  const opacity = report.status === 'resuelto' ? 'opacity:0.5;' : '';
-  return `<div style="
-    width:52px;height:52px;
-    border-radius:50%;
-    overflow:hidden;
-    border:3px solid ${cm.color};
-    ${glow}
-    ${opacity}
-    cursor:pointer;
-    background:#16213e;
-    position:relative;
-  ">
-    <img src="${report.thumbnail}"
-      width="52" height="52"
-      style="object-fit:cover;display:block;" alt="" />
-    <div style="
-      position:absolute;bottom:0;right:0;
-      width:14px;height:14px;border-radius:50%;
-      background:${sm.color};
-      border:2px solid #0d0f1a;
-    "></div>
-  </div>`;
-}
+const TILES = {
+  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+};
 
-export default function MapView({ reports, onMarkerClick, showHeatmap = false }: Props) {
+export default function MapView({
+  bins = [],
+  reports = [],
+  selectedId,
+  onBinClick,
+  onReportClick,
+  showHeatmap = false,
+  containerFilter = null,
+  variant = 'light',
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
-  const markersRef = useRef<Map<string, Marker>>(new Map());
+  const binMarkers = useRef<Map<string, Marker>>(new Map());
+  const reportMarkers = useRef<Map<string, Marker>>(new Map());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const heatLayerRef = useRef<any>(null);
+  const heatRef = useRef<any>(null);
+  const [mapReady, setMapReady] = useState(false);
 
+  // init map
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     let destroyed = false;
 
     import('leaflet').then((L) => {
       if (destroyed || !containerRef.current || mapRef.current) return;
-
+      // Limpia cualquier id de Leaflet residual (Fast Refresh / StrictMode).
+      const el = containerRef.current as HTMLDivElement & { _leaflet_id?: number };
+      if (el._leaflet_id) delete el._leaflet_id;
       const map = L.map(containerRef.current, {
-        center: [40.416, -3.703],
-        zoom: 13,
-        zoomControl: true,
+        center: [SC_TENERIFE.lat, SC_TENERIFE.lng],
+        zoom: 15,
+        zoomControl: false,
       });
-
-      L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        {
-          attribution:
-            '&copy; <a href="https://carto.com/">CARTO</a>',
-          maxZoom: 19,
-        }
-      ).addTo(map);
-
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-          if (!destroyed)
-            map.setView([pos.coords.latitude, pos.coords.longitude], 15);
-        });
-      }
-
+      L.tileLayer(TILES[variant], {
+        attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OpenStreetMap',
+        maxZoom: 20,
+      }).addTo(map);
       mapRef.current = map;
+      setMapReady(true);
     });
 
     return () => {
       destroyed = true;
       mapRef.current?.remove();
       mapRef.current = null;
-      markersRef.current.clear();
+      binMarkers.current.clear();
+      reportMarkers.current.clear();
+      setMapReady(false);
     };
-  }, []);
+  }, [variant]);
 
+  const filterOk = (t: ContainerType) =>
+    !containerFilter || containerFilter.size === 0 || containerFilter.has(t);
+
+  // bin markers
   useEffect(() => {
     if (!mapRef.current) return;
-
     import('leaflet').then((L) => {
       const map = mapRef.current!;
-      const currentIds = new Set(reports.map(r => r.id));
-
-      markersRef.current.forEach((marker, id) => {
-        if (!currentIds.has(id)) {
-          marker.remove();
-          markersRef.current.delete(id);
+      const shown = new Set<string>();
+      bins.forEach((bin) => {
+        if (!filterOk(bin.type)) return;
+        shown.add(bin.id);
+        const html = pinHtml({ type: bin.type, size: 34, selected: bin.id === selectedId });
+        const icon = L.divIcon({ className: '', html, iconSize: [34, 42], iconAnchor: [17, 42] });
+        const existing = binMarkers.current.get(bin.id);
+        if (existing) {
+          existing.setIcon(icon);
+        } else {
+          const m = L.marker([bin.lat, bin.lng], { icon })
+            .addTo(map)
+            .on('click', () => onBinClick?.(bin));
+          binMarkers.current.set(bin.id, m);
         }
       });
-
-      reports.forEach((report) => {
-        if (markersRef.current.has(report.id)) {
-          // update icon (status/priority may have changed)
-          const marker = markersRef.current.get(report.id)!;
-          marker.setIcon(
-            L.divIcon({
-              className: '',
-              html: markerHtml(report),
-              iconSize: [52, 52],
-              iconAnchor: [26, 26],
-            })
-          );
-          return;
+      binMarkers.current.forEach((m, id) => {
+        if (!shown.has(id)) {
+          m.remove();
+          binMarkers.current.delete(id);
         }
-
-        const icon = L.divIcon({
-          className: '',
-          html: markerHtml(report),
-          iconSize: [52, 52],
-          iconAnchor: [26, 26],
-        });
-
-        const marker = L.marker([report.lat, report.lng], { icon })
-          .addTo(map)
-          .on('click', () => onMarkerClick(report.id));
-
-        markersRef.current.set(report.id, marker);
       });
     });
-  }, [reports, onMarkerClick]);
+  }, [bins, selectedId, onBinClick, containerFilter, mapReady]);
 
-  // Heatmap layer
+  // report markers
   useEffect(() => {
-    if (!mapRef.current || !showHeatmap) return;
+    if (!mapRef.current) return;
+    import('leaflet').then((L) => {
+      const map = mapRef.current!;
+      const shown = new Set<string>();
+      if (!showHeatmap) {
+        reports.forEach((r) => {
+          if (!filterOk(r.containerType)) return;
+          shown.add(r.id);
+          const html = pinHtml({
+            type: r.containerType,
+            status: r.status,
+            size: 30,
+            selected: r.id === selectedId,
+            faded: r.status === 'resuelto',
+          });
+          const icon = L.divIcon({ className: '', html, iconSize: [30, 38], iconAnchor: [15, 38] });
+          const existing = reportMarkers.current.get(r.id);
+          if (existing) {
+            existing.setIcon(icon);
+          } else {
+            const m = L.marker([r.lat, r.lng], { icon })
+              .addTo(map)
+              .on('click', () => onReportClick?.(r));
+            reportMarkers.current.set(r.id, m);
+          }
+        });
+      }
+      reportMarkers.current.forEach((m, id) => {
+        if (!shown.has(id)) {
+          m.remove();
+          reportMarkers.current.delete(id);
+        }
+      });
+    });
+  }, [reports, selectedId, onReportClick, showHeatmap, containerFilter, mapReady]);
 
-    const points = reports.map(r => [r.lat, r.lng, 0.8] as [number, number, number]);
-
+  // heatmap
+  useEffect(() => {
+    if (!mapRef.current) return;
     import('leaflet').then(async (L) => {
       await import('leaflet.heat');
       const map = mapRef.current;
       if (!map) return;
-      if (heatLayerRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.removeLayer(heatLayerRef.current as any);
+      if (heatRef.current) {
+        map.removeLayer(heatRef.current);
+        heatRef.current = null;
       }
+      if (!showHeatmap) return;
+      const pts = reports
+        .filter((r) => filterOk(r.containerType))
+        .map((r) => [r.lat, r.lng, 0.9] as [number, number, number]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const heat = (L as any).heatLayer(points, {
-        radius: 35,
-        blur: 25,
-        maxZoom: 17,
-        gradient: { 0.2: '#2f6fb0', 0.5: '#ffc048', 1.0: '#ff4455' },
-      }).addTo(map);
-      heatLayerRef.current = heat;
+      heatRef.current = (L as any)
+        .heatLayer(pts, {
+          radius: 38,
+          blur: 28,
+          maxZoom: 18,
+          gradient: { 0.2: '#005A9C', 0.5: '#E8A317', 1.0: '#C0392B' },
+        })
+        .addTo(map);
     });
-  }, [reports, showHeatmap]);
+  }, [reports, showHeatmap, containerFilter, mapReady]);
 
   return (
     <div
       ref={containerRef}
       style={{
-        width: '100%',
-        height: '100%',
-        position: 'absolute',
-        top: 0,
-        left: 0,
+        width: '100%', height: '100%', background: '#EAEAEA',
+        position: 'relative', isolation: 'isolate',
       }}
     />
   );

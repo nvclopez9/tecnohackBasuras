@@ -1,7 +1,6 @@
 import { Role } from '@/types';
 
 const ROLE_KEY = 'eco-role';
-const MY_REPORTS_KEY = 'eco-my-reports';
 
 export function getRole(): Role | null {
   if (typeof window === 'undefined') return null;
@@ -14,21 +13,7 @@ export function setRole(role: Role): void {
   window.localStorage.setItem(ROLE_KEY, role);
 }
 
-export function getMyReportIds(): string[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(MY_REPORTS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-export function addMyReportId(id: string): void {
+export function clearRole(): void {
   if (typeof window === 'undefined') return;
-  const ids = getMyReportIds();
-  if (!ids.includes(id)) {
-    window.localStorage.setItem(MY_REPORTS_KEY, JSON.stringify([id, ...ids]));
-  }
+  window.localStorage.removeItem(ROLE_KEY);
 }

@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { randomUUID } from 'crypto';
 import { getReport, listComments, insertComment } from '@/server/db';
-import { Comment, Role } from '@/types';
+import { Role } from '@/types';
 
 const ROLES: Role[] = ['ciudadano', 'municipal'];
 
@@ -19,23 +18,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!getReport(id)) {
       return res.status(404).json({ error: 'Reporte no encontrado' });
     }
-    const body = req.body ?? {};
-    const { text, authorRole } = body;
-    if (
-      typeof text !== 'string' ||
-      text.trim() === '' ||
-      !ROLES.includes(authorRole)
-    ) {
+    const b = req.body ?? {};
+    if (typeof b.text !== 'string' || b.text.trim() === '' || !ROLES.includes(b.authorRole)) {
       return res.status(400).json({ error: 'Comentario no válido' });
     }
-    const comment: Comment = {
-      id: randomUUID(),
-      reportId: id,
-      authorRole: authorRole as Role,
-      text: text.trim(),
-      createdAt: Date.now(),
-    };
-    insertComment(comment);
+    const comment = insertComment(id, b.authorRole as Role, b.text.trim());
     return res.status(201).json(comment);
   }
 

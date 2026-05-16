@@ -9,31 +9,33 @@ export interface ContainerMeta {
   type: ContainerType;
   label: string;
   color: string;
+  icon: string;
 }
 
 export const CONTAINERS: ContainerMeta[] = [
-  { type: 'organico', label: 'Orgánico', color: '#8d6e3a' },
-  { type: 'envases', label: 'Envases', color: '#e3b505' },
-  { type: 'papel', label: 'Papel / Cartón', color: '#2f6fb0' },
-  { type: 'vidrio', label: 'Vidrio', color: '#3a9d4a' },
-  { type: 'resto', label: 'Resto', color: '#7d7d7d' },
-  { type: 'ropa', label: 'Ropa', color: '#c2569b' },
-  { type: 'aceite', label: 'Aceite', color: '#d97a2b' },
-  { type: 'baterias', label: 'Baterías', color: '#b03a3a' },
+  { type: 'organico', label: 'Orgánico', color: '#8C5A2B', icon: 'leaf' },
+  { type: 'envases', label: 'Envases', color: '#F2B100', icon: 'bottle' },
+  { type: 'papel', label: 'Papel', color: '#1F6FB2', icon: 'news' },
+  { type: 'vidrio', label: 'Vidrio', color: '#2E8B57', icon: 'bottle' },
+  { type: 'resto', label: 'Resto', color: '#5C6670', icon: 'bag' },
+  { type: 'ropa', label: 'Ropa', color: '#E07A2C', icon: 'shirt' },
+  { type: 'aceite', label: 'Aceite', color: '#C99700', icon: 'drop' },
+  { type: 'baterias', label: 'Baterías', color: '#A4243B', icon: 'battery' },
 ];
 
 export interface IncidentMeta {
   type: IncidentType;
   label: string;
   icon: string;
+  priority: Priority;
 }
 
 export const INCIDENTS: IncidentMeta[] = [
-  { type: 'lleno', label: 'Lleno / desbordado', icon: '🗑️' },
-  { type: 'roto', label: 'Roto / dañado', icon: '🔧' },
-  { type: 'sucio', label: 'Sucio / mal olor', icon: '🦨' },
-  { type: 'quemado', label: 'Quemado / vandalizado', icon: '🔥' },
-  { type: 'desaparecido', label: 'Desaparecido / desplazado', icon: '❓' },
+  { type: 'lleno', label: 'Lleno / desbordado', icon: 'bag', priority: 'media' },
+  { type: 'roto', label: 'Roto / dañado', icon: 'edit', priority: 'media' },
+  { type: 'sucio', label: 'Sucio / mal olor', icon: 'drop', priority: 'baja' },
+  { type: 'quemado', label: 'Quemado / vandalizado', icon: 'flame', priority: 'alta' },
+  { type: 'desaparecido', label: 'Desaparecido / desplazado', icon: 'question', priority: 'alta' },
 ];
 
 export interface StatusMeta {
@@ -43,9 +45,9 @@ export interface StatusMeta {
 }
 
 export const STATUSES: StatusMeta[] = [
-  { status: 'pendiente', label: 'Pendiente', color: '#e3b505' },
-  { status: 'en_proceso', label: 'En proceso', color: '#2f6fb0' },
-  { status: 'resuelto', label: 'Resuelto', color: '#3a9d4a' },
+  { status: 'pendiente', label: 'Pendiente', color: '#E8A317' },
+  { status: 'en_proceso', label: 'En proceso', color: '#005A9C' },
+  { status: 'resuelto', label: 'Resuelto', color: '#2E8B57' },
 ];
 
 export interface PriorityMeta {
@@ -55,15 +57,15 @@ export interface PriorityMeta {
 }
 
 export const PRIORITIES: PriorityMeta[] = [
-  { priority: 'baja', label: 'Baja', color: '#3a9d4a' },
-  { priority: 'media', label: 'Media', color: '#e3b505' },
-  { priority: 'alta', label: 'Alta', color: '#b03a3a' },
+  { priority: 'baja', label: 'Baja', color: '#5A8FA8' },
+  { priority: 'media', label: 'Media', color: '#E8A317' },
+  { priority: 'alta', label: 'Alta', color: '#C0392B' },
 ];
 
 export const TEAMS = [
-  'Equipo Norte',
-  'Equipo Sur',
   'Equipo Centro',
+  'Equipo Anaga',
+  'Equipo Salud-Ofra',
   'Recogida especial',
 ];
 

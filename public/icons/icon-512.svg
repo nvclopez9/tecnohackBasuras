@@ -1,4 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#16213e" rx="64"/>
-  <text x="256" y="340" font-size="256" text-anchor="middle" font-family="system-ui">🌿</text>
+  <rect width="512" height="512" rx="96" fill="#005A9C"/>
+  <circle cx="256" cy="256" r="166" fill="#F6F8FA"/>
+  <text x="256" y="329" font-size="182" font-weight="800" text-anchor="middle"
+        font-family="Inter, system-ui, sans-serif" fill="#005A9C">Ec</text>
 </svg>

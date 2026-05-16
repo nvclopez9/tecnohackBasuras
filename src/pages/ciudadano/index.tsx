@@ -1,156 +1,174 @@
 import dynamic from 'next/dynamic';
-import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useState, useCallback, useEffect } from 'react';
-import CameraButton, { CaptureResult } from '@/components/CameraButton';
-import ReportForm from '@/components/ReportForm';
-import ReportDetail from '@/components/ReportDetail';
-import { useReports } from '@/hooks/useReports';
-import { getRole, addMyReportId } from '@/lib/storage';
-import { ContainerType, IncidentType, Report } from '@/types';
+import { useState, useMemo } from 'react';
+import CitizenLayout, { NAV_HEIGHT } from '@/components/citizen/CitizenLayout';
+import { Chip, ContainerChip, Button } from '@/components/ui/primitives';
+import { Icon } from '@/components/ui/Icon';
+import { useBins } from '@/hooks/useBins';
+import { THEME } from '@/lib/theme';
+import { CONTAINERS, containerMeta } from '@/lib/constants';
+import { Bin, ContainerType } from '@/types';
+
+const T = THEME;
 
 const MapView = dynamic(() => import('@/components/MapView'), {
   ssr: false,
   loading: () => (
     <div style={{
-      width: '100vw', height: '100dvh',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg)', color: 'var(--muted)',
-      fontFamily: 'var(--font-mono)',
+      width: '100%', height: '100%', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+      background: '#eaeaea', color: T.inkMid, fontSize: 13,
     }}>
       Cargando mapa…
     </div>
   ),
 });
 
-export default function CiudadanoPage() {
+export default function CiudadanoHome() {
   const router = useRouter();
-  const { reports, addReport, updateReport } = useReports({ poll: false });
-  const [capture, setCapture] = useState<CaptureResult | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { bins } = useBins();
+  const [filter, setFilter] = useState<Set<ContainerType>>(new Set());
+  const [selected, setSelected] = useState<Bin | null>(null);
 
-  useEffect(() => {
-    if (getRole() !== 'ciudadano') router.replace('/');
-  }, [router]);
+  const toggle = (type: ContainerType) => {
+    setFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  };
 
-  const handleCapture = useCallback((result: CaptureResult) => {
-    setCapture(result);
-  }, []);
-
-  const handleSubmit = useCallback(
-    async (data: {
-      photo: string; thumbnail: string;
-      lat: number; lng: number;
-      containerType: ContainerType; incidentType: IncidentType;
-      description: string;
-    }) => {
-      const report = await addReport(data);
-      addMyReportId(report.id);
-      setCapture(null);
-    },
-    [addReport]
-  );
-
-  const selectedReport = reports.find(r => r.id === selectedId) ?? null;
-
-  const handleUpdate = useCallback(
-    async (changes: { status?: import('@/types').ReportStatus; assignee?: string }) => {
-      if (!selectedId) return;
-      await updateReport(selectedId, changes);
-    },
-    [selectedId, updateReport]
-  );
+  const filterSet = useMemo(() => (filter.size === 0 ? null : filter), [filter]);
 
   return (
-    <>
-      <Head>
-        <title>EcoChicharro · Ciudadano</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-      </Head>
-
-      {/* Top bar */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 800,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0.75rem 1rem',
-        background: 'linear-gradient(to bottom, rgba(13,15,26,0.95), transparent)',
-        pointerEvents: 'none',
-      }}>
-        <div style={{ pointerEvents: 'auto' }}>
-          <span style={{
-            fontFamily: 'var(--font-display)', fontWeight: 800,
-            fontSize: '1.3rem', letterSpacing: '-0.01em',
-          }}>
-            ♻️ EcoChicharro
-          </span>
-          <span style={{
-            display: 'block', fontFamily: 'var(--font-mono)',
-            fontSize: '0.65rem', color: 'var(--muted)',
-          }}>
-            CIUDADANO · {reports.length} reportes activos
-          </span>
-        </div>
-        <button
-          onClick={() => router.push('/ciudadano/mis-reportes')}
-          style={{
-            padding: '6px 14px',
-            background: 'rgba(0,255,136,0.1)',
-            border: '1px solid rgba(0,255,136,0.3)',
-            borderRadius: '20px', color: 'var(--accent)',
-            fontFamily: 'var(--font-mono)', fontSize: '0.75rem',
-            pointerEvents: 'auto',
-          }}
-        >
-          Mis reportes
-        </button>
-      </div>
-
-      {/* Map */}
-      <div style={{ position: 'fixed', inset: 0 }}>
+    <CitizenLayout title="EcoChicharro · Inicio">
+      {/* MAP */}
+      <div style={{ position: 'absolute', inset: 0 }}>
         <MapView
-          reports={reports}
-          onMarkerClick={id => setSelectedId(id)}
+          bins={bins}
+          containerFilter={filterSet}
+          selectedId={selected?.id}
+          onBinClick={(b) => setSelected(b)}
         />
       </div>
 
-      {/* Camera FAB */}
-      {!capture && (
-        <CameraButton onCapture={handleCapture} />
-      )}
-
-      {/* Back to home */}
-      <button
-        onClick={() => router.push('/')}
+      {/* TOP HEADER */}
+      <div
         style={{
-          position: 'fixed', bottom: '1.8rem', left: '1.5rem', zIndex: 900,
-          width: '44px', height: '44px', borderRadius: '50%',
-          background: 'rgba(13,15,26,0.8)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          color: 'rgba(240,242,255,0.6)', fontSize: '1rem',
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
+          padding: '16px 16px 14px',
+          background: 'linear-gradient(180deg, rgba(246,248,250,.97) 62%, rgba(246,248,250,0))',
         }}
-        aria-label="Volver"
       >
-        ←
-      </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8, background: T.primary,
+            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 700, fontSize: 16,
+          }}>Ec</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, lineHeight: 1.1 }}>EcoChicharro</div>
+            <div style={{ fontSize: 11, color: T.inkMid }}>Santa Cruz de Tenerife</div>
+          </div>
+          <button
+            style={{
+              width: 36, height: 36, borderRadius: 999, background: '#fff',
+              border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: T.ink, cursor: 'pointer',
+            }}
+            aria-label="Notificaciones"
+          >
+            <Icon name="bell" size={18} />
+          </button>
+        </div>
 
-      {/* Report form modal */}
-      {capture && (
-        <ReportForm
-          capture={capture}
-          onSubmit={handleSubmit}
-          onCancel={() => setCapture(null)}
-        />
-      )}
+        {/* Search */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: '#fff', border: `1px solid ${T.border}`,
+          borderRadius: 10, padding: '9px 12px',
+          boxShadow: '0 1px 3px rgba(0,0,0,.04)',
+        }}>
+          <Icon name="search" size={16} color={T.inkMid} />
+          <input
+            placeholder="Buscar calle, plaza, contenedor…"
+            style={{
+              border: 'none', outline: 'none', flex: 1, fontSize: 13.5,
+              color: T.ink, background: 'transparent',
+            }}
+          />
+        </div>
+      </div>
 
-      {/* Report detail modal */}
-      {selectedReport && (
-        <ReportDetail
-          report={selectedReport}
-          role="ciudadano"
-          onClose={() => setSelectedId(null)}
-          onUpdate={handleUpdate}
-        />
+      {/* FILTER CHIPS */}
+      <div style={{ position: 'absolute', top: 122, left: 0, right: 0, zIndex: 18, padding: '0 14px' }}>
+        <div className="no-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }}>
+          <Chip label="Todos" active={filter.size === 0} onClick={() => setFilter(new Set())} size="sm" />
+          {CONTAINERS.map((c) => (
+            <ContainerChip key={c.type} type={c.type} active={filter.has(c.type)} onClick={() => toggle(c.type)} size="sm" />
+          ))}
+        </div>
+      </div>
+
+      {/* COUNT PILL */}
+      <div style={{
+        position: 'absolute', left: 14, bottom: NAV_HEIGHT + (selected ? 0 : 16), zIndex: 18,
+        display: selected ? 'none' : 'flex', alignItems: 'center', gap: 6,
+        background: '#fff', border: `1px solid ${T.border}`, borderRadius: 999,
+        padding: '7px 12px', boxShadow: '0 2px 8px rgba(0,0,0,.08)',
+        fontSize: 12, fontWeight: 600, color: T.ink,
+      }}>
+        <Icon name="pin" size={13} color={T.primary} />
+        {bins.filter((b) => !filterSet || filterSet.has(b.type)).length} papeleras
+      </div>
+
+      {/* BOTTOM SHEET */}
+      {selected && (
+        <div style={{
+          position: 'absolute', left: 0, right: 0, bottom: NAV_HEIGHT, zIndex: 40,
+          background: '#fff', borderRadius: '16px 16px 0 0',
+          padding: '14px 18px 18px', boxShadow: '0 -6px 22px rgba(0,0,0,.12)',
+          borderTop: `1px solid ${T.border}`,
+        }}>
+          <div style={{ width: 36, height: 4, background: T.border, borderRadius: 999, margin: '0 auto 12px' }} />
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <span style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: containerMeta(selected.type).color + '22',
+              color: containerMeta(selected.type).color,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon name="pin" size={20} />
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>
+                Contenedor de {containerMeta(selected.type).label.toLowerCase()}
+              </div>
+              <div style={{ fontSize: 12.5, color: T.inkMid, marginTop: 2 }}>
+                {selected.address} · {selected.area}
+              </div>
+            </div>
+            <button
+              onClick={() => setSelected(null)}
+              style={{ background: 'transparent', border: 'none', color: T.inkMid, cursor: 'pointer' }}
+              aria-label="Cerrar"
+            >
+              <Icon name="x" size={18} />
+            </button>
+          </div>
+          <Button
+            kind="primary" size="md" full
+            icon={<Icon name="camera" size={16} />}
+            style={{ marginTop: 14 }}
+            onClick={() =>
+              router.push(`/ciudadano/reportar?binId=${selected.id}&containerType=${selected.type}`)
+            }
+          >
+            Reportar incidencia aquí
+          </Button>
+        </div>
       )}
-    </>
+    </CitizenLayout>
   );
 }

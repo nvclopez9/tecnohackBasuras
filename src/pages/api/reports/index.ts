@@ -1,9 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { randomUUID } from 'crypto';
-import { listReports, insertReport } from '@/server/db';
-import { priorityFor } from '@/lib/priority';
+import { listReports, insertReport, getBin, DEFAULT_USER_ID } from '@/server/db';
 import { CONTAINERS, INCIDENTS } from '@/lib/constants';
-import { Report, ContainerType, IncidentType } from '@/types';
+import { ContainerType, IncidentType } from '@/types';
 
 const CONTAINER_TYPES = CONTAINERS.map(c => c.type);
 const INCIDENT_TYPES = INCIDENTS.map(i => i.type);
@@ -14,62 +12,58 @@ export const config = {
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
-    const { status, containerType, incidentType, priority, ids } = req.query;
+    const q = req.query;
+    const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
     const reports = listReports({
-      status: typeof status === 'string' ? status : undefined,
-      containerType:
-        typeof containerType === 'string' ? containerType : undefined,
-      incidentType:
-        typeof incidentType === 'string' ? incidentType : undefined,
-      priority: typeof priority === 'string' ? priority : undefined,
-      ids:
-        typeof ids === 'string'
-          ? ids.split(',').filter(Boolean)
-          : undefined,
+      status: str(q.status),
+      containerType: str(q.containerType),
+      incidentType: str(q.incidentType),
+      priority: str(q.priority),
+      area: str(q.area),
+      userId: str(q.userId),
+      ids: typeof q.ids === 'string' ? q.ids.split(',').filter(Boolean) : undefined,
     });
     return res.status(200).json(reports);
   }
 
   if (req.method === 'POST') {
-    const body = req.body ?? {};
-    const {
-      photo,
-      thumbnail,
-      lat,
-      lng,
-      containerType,
-      incidentType,
-      description,
-    } = body;
-
+    const b = req.body ?? {};
     if (
-      typeof photo !== 'string' ||
-      typeof thumbnail !== 'string' ||
-      typeof lat !== 'number' ||
-      typeof lng !== 'number' ||
-      !CONTAINER_TYPES.includes(containerType) ||
-      !INCIDENT_TYPES.includes(incidentType)
+      typeof b.photo !== 'string' ||
+      typeof b.thumbnail !== 'string' ||
+      typeof b.lat !== 'number' ||
+      typeof b.lng !== 'number' ||
+      !CONTAINER_TYPES.includes(b.containerType) ||
+      !INCIDENT_TYPES.includes(b.incidentType)
     ) {
       return res.status(400).json({ error: 'Datos de reporte no válidos' });
     }
 
-    const now = Date.now();
-    const report: Report = {
-      id: randomUUID(),
-      photo,
-      thumbnail,
-      lat,
-      lng,
-      containerType: containerType as ContainerType,
-      incidentType: incidentType as IncidentType,
-      description: typeof description === 'string' ? description : '',
-      status: 'pendiente',
-      priority: priorityFor(incidentType as IncidentType),
-      assignee: '',
-      createdAt: now,
-      updatedAt: now,
-    };
-    insertReport(report);
+    let address = typeof b.address === 'string' ? b.address : '';
+    let area = typeof b.area === 'string' ? b.area : '';
+    const binId = typeof b.binId === 'string' ? b.binId : '';
+    if (binId && (!address || !area)) {
+      const bin = getBin(binId);
+      if (bin) {
+        address = address || bin.address;
+        area = area || bin.area;
+      }
+    }
+    if (!area) area = 'Santa Cruz';
+
+    const report = insertReport({
+      userId: DEFAULT_USER_ID,
+      binId,
+      photo: b.photo,
+      thumbnail: b.thumbnail,
+      lat: b.lat,
+      lng: b.lng,
+      address,
+      area,
+      containerType: b.containerType as ContainerType,
+      incidentType: b.incidentType as IncidentType,
+      description: typeof b.description === 'string' ? b.description : '',
+    });
     return res.status(201).json(report);
   }
 

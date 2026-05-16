@@ -1,17 +1,15 @@
 :root {
-  --bg: #0d0f1a;
-  --surface: #16213e;
-  --surface2: #1c2a4a;
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #f0f2ff;
-  --muted: rgba(240, 242, 255, 0.45);
-  --accent: #00ff88;
-  --accent-dim: rgba(0, 255, 136, 0.15);
-  --font-display: 'Barlow Condensed', sans-serif;
-  --font-mono: 'DM Mono', monospace;
-  --priority-high: #ff4455;
-  --priority-med: #ffc048;
-  --priority-low: #00c96b;
+  --primary: #005A9C;
+  --primary-dark: #004B87;
+  --primary-tint: #D6E6F2;
+  --primary-mist: #EEF4F9;
+  --app-bg: #F6F8FA;
+  --surface: #FFFFFF;
+  --border: #E2E6EA;
+  --border-soft: #EEF2F5;
+  --ink: #1C2530;
+  --ink-mid: #6B7480;
+  --ink-light: #A8B0B8;
 }
 
 *, *::before, *::after {
@@ -23,13 +21,11 @@
 html, body {
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 14px;
-  -webkit-tap-highlight-color: transparent;
+  background: var(--app-bg);
+  color: var(--ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #__next {
@@ -37,57 +33,29 @@ html, body {
   height: 100%;
 }
 
-button {
-  font-family: inherit;
-  cursor: pointer;
-}
-
-/* Scrollable page container */
-.page-scroll {
-  position: fixed;
-  inset: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Grid texture overlay */
-.grid-bg::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Badge */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-/* Pulse for high priority */
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 4px var(--priority-high); }
-  50% { box-shadow: 0 0 12px var(--priority-high); }
-}
-.priority-alta { animation: pulse-glow 2s ease-in-out infinite; }
-
-/* Card */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+body {
   overflow: hidden;
 }
+
+button, input, textarea, select {
+  font-family: inherit;
+}
+
+/* Leaflet divIcon — quitar fondo/borde por defecto */
+.leaflet-div-icon {
+  background: transparent;
+  border: none;
+}
+.leaflet-container {
+  font-family: 'Inter', sans-serif;
+  background: #eaeaea;
+}
+
+/* Scroll fino */
+.thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: #CFD6DD; border-radius: 4px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* Ocultar scrollbar (tiras de chips) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
