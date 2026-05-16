@@ -22,7 +22,7 @@ export const CONTAINERS: ContainerMeta[] = [
   { type: 'aceite', label: 'Aceite', color: '#C99700', icon: 'drop' },
   { type: 'baterias', label: 'Baterías', color: '#A4243B', icon: 'battery' },
   { type: 'papelera', label: 'Papelera', color: '#607D8B', icon: 'bag' },
-  { type: 'mixto', label: 'Mixto', color: '#795548', icon: 'bag' },
+  { type: 'mixto', label: 'Restos', color: '#795548', icon: 'bag' },
   { type: 'electrico', label: 'Eléctrico / RAEE', color: '#FFA000', icon: 'flash' },
 ];
 

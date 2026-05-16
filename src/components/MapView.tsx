@@ -67,7 +67,7 @@ export default function MapView({
       if (el._leaflet_id) delete el._leaflet_id;
       const map = L.map(containerRef.current, {
         center: [SC_TENERIFE.lat, SC_TENERIFE.lng],
-        zoom: 15,
+        zoom: 17,
         zoomControl: false,
         minZoom,
         maxZoom,

@@ -172,7 +172,7 @@ function RouteSearchOverlay({ onClose }: RouteSearchOverlayProps) {
           >
             Todos
           </button>
-          {CONTAINERS.map(c => (
+          {CONTAINERS.filter(c => !['resto', 'organico', 'baterias'].includes(c.type)).map(c => (
             <ContainerChip
               key={c.type} type={c.type}
               active={typeFilter === c.type}

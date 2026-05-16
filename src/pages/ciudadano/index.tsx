@@ -46,24 +46,24 @@ const MapView = dynamic(() => import('@/components/MapView'), {
 export default function CiudadanoHome() {
   const router = useRouter();
   const [bins, setBins] = useState<Bin[]>([]);
-  const [mapZoom, setMapZoom] = useState(15);
+  const [mapZoom, setMapZoom] = useState(17);
   const [isBarrioView, setIsBarrioView] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filter, setFilter] = useState<Set<ContainerType>>(new Set(['papelera']));
+  const [filter, setFilter] = useState<Set<ContainerType>>(new Set(['mixto', 'papel', 'envases']));
   const [selected, setSelected] = useState<Bin | null>(null);
   const [route, setRoute] = useState<Bin[]>([]);
 
   const bboxRef = useRef<string | null>(null);
-  const zoomRef = useRef<number>(15);
-  const filterRef = useRef<Set<ContainerType>>(new Set(['papelera']));
+  const zoomRef = useRef<number>(17);
+  const filterRef = useRef<Set<ContainerType>>(new Set(['mixto', 'papel', 'envases']));
 
   useEffect(() => { filterRef.current = filter; }, [filter]);
 
   const fetchBins = useCallback((bbox: string) => {
     const types = filterRef.current;
     const typeParam = types.size > 0 ? `&type=${[...types].join(',')}` : '';
-    fetch(`/api/bins?bbox=${bbox}${typeParam}`)
+    fetch(`/api/bins?bbox=${bbox}${typeParam}&limit=400`)
       .then(r => r.json())
       .then((data: Bin[]) => setBins(data))
       .catch(() => {});
@@ -230,7 +230,7 @@ export default function CiudadanoHome() {
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
-              {CONTAINERS.map(c => {
+              {CONTAINERS.filter(c => !['resto', 'organico', 'baterias'].includes(c.type)).map(c => {
                 const active = filter.has(c.type);
                 const meta = containerMeta(c.type);
                 return (
@@ -286,20 +286,6 @@ export default function CiudadanoHome() {
           >
             <Icon name="x" size={14} color="#fff" />
           </button>
-        </div>
-      )}
-
-      {/* COUNT PILL */}
-      {route.length === 0 && !selected && (
-        <div style={{
-          position: 'absolute', left: 14, bottom: NAV_HEIGHT + 16, zIndex: 18,
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: '#fff', border: `1px solid ${T.border}`, borderRadius: 999,
-          padding: '7px 12px', boxShadow: '0 2px 8px rgba(0,0,0,.08)',
-          fontSize: 12, fontWeight: 600, color: T.ink,
-        }}>
-          <Icon name="pin" size={13} color={T.primary} />
-          {visibleCount} {filter.size === 1 && [...filter][0] === 'papelera' ? 'papeleras' : 'contenedores'}
         </div>
       )}
 
