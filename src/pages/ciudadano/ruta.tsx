@@ -8,7 +8,6 @@ import { THEME } from '@/lib/theme';
 import { containerMeta } from '@/lib/constants';
 import { ECO_HOURLY, bestHourTip } from '@/lib/gamification';
 import { Bin, ContainerType } from '@/types';
-import type { FlyTo } from '@/components/MapView';
 
 const T = THEME;
 
@@ -125,89 +124,9 @@ function StopCard({ stop }: { stop: Stop }) {
   );
 }
 
-function SearchOverlay({ onClose, onSelect }: { onClose: () => void; onSelect: (lat: number, lng: number) => void }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Bin[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!query.trim()) { setResults([]); return; }
-    const timer = setTimeout(() => {
-      setLoading(true);
-      fetch(`/api/bins?q=${encodeURIComponent(query.trim())}&limit=20`)
-        .then(r => r.json())
-        .then((data: Bin[]) => { setResults(data); setLoading(false); })
-        .catch(() => setLoading(false));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,.45)',
-      display: 'flex', alignItems: 'flex-end',
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 480, margin: '0 auto',
-        background: T.surface, borderRadius: '20px 20px 0 0',
-        padding: '16px 16px 32px',
-        maxHeight: '80vh', display: 'flex', flexDirection: 'column',
-      }}>
-        <div style={{ width: 36, height: 4, background: T.border, borderRadius: 999, margin: '0 auto 14px' }} />
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, marginBottom: 12 }}>Buscar en el mapa</div>
-
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: T.appBg, border: `1px solid ${T.border}`,
-          borderRadius: 10, padding: '9px 12px', marginBottom: 12,
-        }}>
-          <Icon name="search" size={16} color={T.inkMid} />
-          <input
-            autoFocus
-            placeholder="Buscar calle, contenedor…"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            style={{ border: 'none', outline: 'none', flex: 1, fontSize: 13.5, color: T.ink, background: 'transparent' }}
-          />
-        </div>
-
-        <div className="thin-scroll" style={{ overflowY: 'auto', flex: 1 }}>
-          {loading && <div style={{ textAlign: 'center', color: T.inkMid, fontSize: 13, padding: '20px 0' }}>Buscando…</div>}
-          {!loading && query.trim() && results.length === 0 && (
-            <div style={{ textAlign: 'center', color: T.inkMid, fontSize: 13, padding: '20px 0' }}>Sin resultados</div>
-          )}
-          {results.map(r => {
-            const meta = containerMeta(r.type);
-            return (
-              <div key={r.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                padding: '10px 0', borderBottom: `1px solid ${T.borderSoft}`,
-              }} onClick={() => { onSelect(r.lat, r.lng); onClose(); }}>
-                <span style={{ width: 8, height: 8, borderRadius: 999, background: meta.color, flex: '0 0 8px' }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{meta.label}</div>
-                  <div style={{ fontSize: 11.5, color: T.inkMid }}>{r.address} · {r.area}</div>
-                </div>
-                <Icon name="locate" size={16} color={T.primary} />
-              </div>
-            );
-          })}
-        </div>
-
-        <Button kind="ghost" full size="md" style={{ marginTop: 14 }} onClick={onClose}>
-          Cancelar
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export default function RutaPage() {
   const router = useRouter();
-  const [searchOpen, setSearchOpen] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
-  const [flyTo, setFlyTo] = useState<FlyTo | null>(null);
 
   useEffect(() => {
     const raw = sessionStorage.getItem('route');
@@ -215,9 +134,6 @@ export default function RutaPage() {
       try {
         const parsed: Bin[] = JSON.parse(raw);
         setStops(stopsFromBins(parsed));
-        if (parsed.length > 0) {
-          setFlyTo({ lat: parsed[0].lat, lng: parsed[0].lng, zoom: 17 });
-        }
       } catch { setStops([]); }
     }
   }, []);
@@ -232,26 +148,10 @@ export default function RutaPage() {
         <MapView
           bins={[]}
           routePoints={routePoints}
-          flyTo={flyTo}
           minZoom={13}
           maxZoom={19}
         />
       </div>
-
-      {/* Search pill */}
-      <button
-        onClick={() => setSearchOpen(true)}
-        style={{
-          position: 'absolute', top: 16, left: 62, right: 14, zIndex: 15,
-          height: 36, borderRadius: 999,
-          background: 'rgba(255,255,255,.90)', border: 'none',
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '0 14px', cursor: 'pointer',
-        }}
-      >
-        <Icon name="search" size={15} color={T.inkMid} />
-        <span style={{ fontSize: 13, color: T.inkMid, fontFamily: 'inherit' }}>Buscar en el mapa…</span>
-      </button>
 
       {/* Back button */}
       <div style={{
@@ -312,8 +212,6 @@ export default function RutaPage() {
           </Button>
         </div>
       )}
-
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onSelect={(lat, lng) => setFlyTo({ lat, lng, zoom: 17 })} />}
     </CitizenLayout>
   );
 }

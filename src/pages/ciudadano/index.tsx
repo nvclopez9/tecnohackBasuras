@@ -56,7 +56,7 @@ export default function CiudadanoHome() {
   const [flyTo, setFlyTo] = useState<FlyTo | null>(null);
   const [locating, setLocating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Bin[]>([]);
+  const [searchResults, setSearchResults] = useState<{ display: string; lat: number; lng: number }[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -120,21 +120,24 @@ export default function CiudadanoHome() {
 
   const filterCount = filter.size;
 
-  // debounced search
+  // debounced geocoding search
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (!searchQuery.trim()) { setSearchResults([]); setSearchOpen(false); return; }
     searchTimer.current = setTimeout(() => {
-      fetch(`/api/bins?q=${encodeURIComponent(searchQuery.trim())}&limit=8`)
+      fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery.trim() + ', Santa Cruz de Tenerife')}&format=json&limit=5&addressdetails=0`)
         .then(r => r.json())
-        .then((data: Bin[]) => { setSearchResults(data); setSearchOpen(data.length > 0); })
+        .then((data: { display_name: string; lat: string; lon: string }[]) => {
+          setSearchResults(data.map(d => ({ display: d.display_name, lat: parseFloat(d.lat), lng: parseFloat(d.lon) })));
+          setSearchOpen(data.length > 0);
+        })
         .catch(() => {});
-    }, 300);
+    }, 400);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [searchQuery]);
 
-  const selectSearchResult = (bin: Bin) => {
-    setFlyTo({ lat: bin.lat, lng: bin.lng, zoom: 17 });
+  const selectSearchResult = (r: { display: string; lat: number; lng: number }) => {
+    setFlyTo({ lat: r.lat, lng: r.lng, zoom: 17 });
     setSearchQuery('');
     setSearchResults([]);
     setSearchOpen(false);
@@ -214,22 +217,19 @@ export default function CiudadanoHome() {
               marginTop: 4, boxShadow: '0 4px 16px rgba(0,0,0,.12)',
               overflow: 'hidden',
             }}>
-              {searchResults.map(r => {
-                const meta = containerMeta(r.type);
-                return (
-                  <div key={r.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-                    padding: '9px 12px', borderBottom: `1px solid ${T.borderSoft}`,
-                  }} onClick={() => selectSearchResult(r)}>
-                    <span style={{ width: 8, height: 8, borderRadius: 999, background: meta.color, flex: '0 0 8px' }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: T.ink }}>{meta.label}</div>
-                      <div style={{ fontSize: 11, color: T.inkMid }}>{r.address}</div>
-                    </div>
-                    <Icon name="locate" size={14} color={T.primary} />
+              {searchResults.map(r => (
+                <div key={r.display} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                  padding: '9px 12px', borderBottom: `1px solid ${T.borderSoft}`,
+                }} onClick={() => selectSearchResult(r)}>
+                  <Icon name="pin" size={14} color={T.primary} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: T.ink }}>Calle / Plaza</div>
+                    <div style={{ fontSize: 11, color: T.inkMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.display}</div>
                   </div>
-                );
-              })}
+                  <Icon name="locate" size={14} color={T.primary} />
+                </div>
+              ))}
             </div>
           )}
         </div>
