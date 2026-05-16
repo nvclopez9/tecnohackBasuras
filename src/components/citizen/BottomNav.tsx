@@ -36,9 +36,9 @@ export default function BottomNav() {
     <nav
       style={{
         position: 'absolute', left: 0, right: 0, bottom: 0,
-        background: '#fff',
-        borderTop: `1px solid ${T.border}`,
-        boxShadow: '0 -2px 12px rgba(0,0,0,.04)',
+        background: `linear-gradient(180deg, ${T.primary} 0%, ${T.primaryDark} 100%)`,
+        borderTop: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 -4px 24px rgba(0,16,56,0.16)',
         paddingBottom: 16,
         display: 'flex',
         zIndex: 50,
@@ -46,33 +46,35 @@ export default function BottomNav() {
     >
       {TABS.map((t) => {
         const isActive = active === t.id;
-        const color = isActive ? T.primary : T.inkMid;
+        const iconColor = '#ffffff';
+        const textColor = isActive ? '#ffffff' : 'rgba(255,255,255,0.78)';
+        const iconSize = t.center ? (isActive ? 28 : 24) : isActive ? 26 : 22;
         return (
           <button
             key={t.id}
             onClick={() => router.push(t.href)}
             style={{
               flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 3, padding: '8px 4px 4px', background: 'transparent', border: 'none',
-              cursor: 'pointer', color,
+              gap: 4, padding: '10px 4px 6px', background: 'transparent', border: 'none',
+              cursor: 'pointer', color: textColor,
             }}
           >
             {t.center ? (
               <span
                 style={{
-                  width: 44, height: 44, borderRadius: 999,
-                  background: isActive ? T.primaryDark : T.primary,
+                  width: 48, height: 48, borderRadius: 999,
+                  background: isActive ? '#0f59a5' : '#0b4a8c',
                   color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  marginTop: -16, boxShadow: '0 4px 12px rgba(0,90,156,.32)',
-                  border: '3px solid #fff',
+                  marginTop: -18, boxShadow: '0 6px 18px rgba(0,60,120,0.28)',
+                  border: '3px solid rgba(255,255,255,0.9)',
                 }}
               >
-                <Icon name={t.icon} size={22} />
+                <Icon name={t.icon} size={iconSize} color={iconColor} />
               </span>
             ) : (
-              <Icon name={t.icon} size={22} color={color} />
+              <Icon name={t.icon} size={iconSize} color={iconColor} />
             )}
-            <span style={{ fontSize: 10.5, fontWeight: isActive ? 600 : 500, color, marginTop: t.center ? -2 : 0 }}>
+            <span style={{ fontSize: 10.5, fontWeight: isActive ? 600 : 500, color: textColor, marginTop: t.center ? -4 : 0 }}>
               {t.label}
             </span>
           </button>

@@ -104,8 +104,10 @@ export default function MapView({
       bins.forEach((bin) => {
         if (!filterOk(bin.type)) return;
         shown.add(bin.id);
-        const html = pinHtml({ type: bin.type, size: 34, selected: bin.id === selectedId });
-        const icon = L.divIcon({ className: '', html, iconSize: [34, 42], iconAnchor: [17, 42] });
+        const selected = bin.id === selectedId;
+        const size = selected ? 44 : 34;
+        const html = pinHtml({ type: bin.type, size, selected });
+        const icon = L.divIcon({ className: '', html, iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.25] });
         const existing = binMarkers.current.get(bin.id);
         if (existing) {
           existing.setIcon(icon);
@@ -135,14 +137,16 @@ export default function MapView({
         reports.forEach((r) => {
           if (!filterOk(r.containerType)) return;
           shown.add(r.id);
+          const selected = r.id === selectedId;
+          const size = selected ? 38 : 30;
           const html = pinHtml({
             type: r.containerType,
             status: r.status,
-            size: 30,
-            selected: r.id === selectedId,
+            size,
+            selected,
             faded: r.status === 'resuelto',
           });
-          const icon = L.divIcon({ className: '', html, iconSize: [30, 38], iconAnchor: [15, 38] });
+          const icon = L.divIcon({ className: '', html, iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.25] });
           const existing = reportMarkers.current.get(r.id);
           if (existing) {
             existing.setIcon(icon);
