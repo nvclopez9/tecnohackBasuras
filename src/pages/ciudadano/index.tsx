@@ -10,10 +10,14 @@ import { Bin, ContainerType } from '@/types';
 import type { RoutePoint } from '@/components/MapView';
 
 const MIN_ZOOM_BINS = 14;
+const MAX_BARRIO_SPAN = 0.058;
 const T = THEME;
 
-function zoomToLimit(zoom: number): number {
-  return Math.min(600, Math.max(50, Math.round(300 * Math.pow(2, 15 - zoom))));
+function bboxFitsBarrio(bbox: string): boolean {
+  const parts = bbox.split(',').map(Number);
+  if (parts.length !== 4 || parts.some((v) => !Number.isFinite(v))) return false;
+  const [latMin, lngMin, latMax, lngMax] = parts;
+  return Math.abs(latMax - latMin) <= MAX_BARRIO_SPAN && Math.abs(lngMax - lngMin) <= MAX_BARRIO_SPAN;
 }
 
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -43,6 +47,7 @@ export default function CiudadanoHome() {
   const router = useRouter();
   const [bins, setBins] = useState<Bin[]>([]);
   const [mapZoom, setMapZoom] = useState(15);
+  const [isBarrioView, setIsBarrioView] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<Set<ContainerType>>(new Set(['papelera']));
@@ -55,11 +60,10 @@ export default function CiudadanoHome() {
 
   useEffect(() => { filterRef.current = filter; }, [filter]);
 
-  const fetchBins = useCallback((bbox: string, zoom: number) => {
-    const limit = zoomToLimit(zoom);
+  const fetchBins = useCallback((bbox: string) => {
     const types = filterRef.current;
     const typeParam = types.size > 0 ? `&type=${[...types].join(',')}` : '';
-    fetch(`/api/bins?bbox=${bbox}&limit=${limit}${typeParam}`)
+    fetch(`/api/bins?bbox=${bbox}${typeParam}`)
       .then(r => r.json())
       .then((data: Bin[]) => setBins(data))
       .catch(() => {});
@@ -69,13 +73,15 @@ export default function CiudadanoHome() {
     bboxRef.current = bbox;
     zoomRef.current = zoom;
     setMapZoom(zoom);
-    if (zoom >= MIN_ZOOM_BINS) fetchBins(bbox, zoom);
+    const barrioView = bboxFitsBarrio(bbox);
+    setIsBarrioView(barrioView);
+    if (zoom >= MIN_ZOOM_BINS && barrioView) fetchBins(bbox);
     else setBins([]);
   }, [fetchBins]);
 
   useEffect(() => {
-    if (bboxRef.current && zoomRef.current >= MIN_ZOOM_BINS) fetchBins(bboxRef.current, zoomRef.current);
-  }, [filter, fetchBins]);
+    if (bboxRef.current && zoomRef.current >= MIN_ZOOM_BINS && isBarrioView) fetchBins(bboxRef.current);
+  }, [filter, fetchBins, isBarrioView]);
 
   const toggle = (type: ContainerType) => {
     setFilter(prev => { const n = new Set(prev); n.has(type) ? n.delete(type) : n.add(type); return n; });
@@ -110,7 +116,7 @@ export default function CiudadanoHome() {
           minZoom={13}
           maxZoom={17}
         />
-        {mapZoom < MIN_ZOOM_BINS && (
+        {(!isBarrioView || mapZoom < MIN_ZOOM_BINS) && (
           <div style={{
             position: 'absolute', bottom: NAV_HEIGHT + 80, left: '50%',
             transform: 'translateX(-50%)', zIndex: 25,
@@ -119,7 +125,9 @@ export default function CiudadanoHome() {
             fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
           }}>
             <Icon name="pin" size={14} color="#fff" />
-            12.078 contenedores · aleja el zoom para verlos
+            {!isBarrioView
+              ? 'Acércate a un barrio para ver los contenedores'
+              : 'Acércate el zoom para ver los contenedores'}
           </div>
         )}
       </div>

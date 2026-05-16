@@ -456,11 +456,11 @@ export function listBins(filters: BinFilters | string = {}): Bin[] {
     }
   }
 
-  const limit = filters.limit ?? (filters.bbox ? 2000 : 300);
+  const limit = filters.limit;
   const sql =
     'SELECT * FROM bins' +
     (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
-    ` LIMIT ${limit}`;
+    (typeof limit === 'number' ? ` LIMIT ${limit}` : '');
   return (conn.prepare(sql).all(...params) as BinRow[]).map(rowToBin);
 }
 
