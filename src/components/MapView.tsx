@@ -4,8 +4,11 @@ import { Bin, Report, ContainerType } from '@/types';
 import { SC_TENERIFE } from '@/lib/theme';
 import { pinHtml } from '@/lib/pin';
 import { TruckRoute } from '@/lib/truckRoutes';
+import { CONTAINERS } from '@/lib/constants';
 
 export interface RoutePoint { lat: number; lng: number; id: string; }
+
+export interface FlyTo { lat: number; lng: number; zoom: number; }
 
 interface Props {
   bins?: Bin[];
@@ -21,6 +24,7 @@ interface Props {
   routePoints?: RoutePoint[];
   minZoom?: number;
   maxZoom?: number;
+  flyTo?: FlyTo | null;
 }
 
 const TILES = {
@@ -42,7 +46,8 @@ export default function MapView({
   truckRoutes = [],
   routePoints = [],
   minZoom = 12,
-  maxZoom = 18,
+  maxZoom = 19,
+  flyTo,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
@@ -103,36 +108,107 @@ export default function MapView({
     };
   }, [variant]);
 
+  // fly to location
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !flyTo) return;
+    import('leaflet').then((L) => {
+      mapRef.current!.flyTo([flyTo.lat, flyTo.lng], flyTo.zoom, { duration: 1.2 });
+    });
+  }, [flyTo, mapReady]);
+
   const filterOk = (t: ContainerType) =>
     !containerFilter || containerFilter.size === 0 || containerFilter.has(t);
+
+  const clusterGroupRef = useRef<any>(null);
+  const markerTypeMap = useRef<WeakMap<L.Marker, ContainerType>>(new WeakMap());
 
   // bin markers
   useEffect(() => {
     if (!mapRef.current) return;
     import('leaflet').then((L) => {
-      const map = mapRef.current!;
-      const shown = new Set<string>();
-      bins.forEach((bin) => {
-        if (!filterOk(bin.type)) return;
-        shown.add(bin.id);
-        const selected = bin.id === selectedId;
-        const size = selected ? 44 : 34;
-        const html = pinHtml({ type: bin.type, size, selected });
-        const icon = L.divIcon({ className: '', html, iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.25] });
-        const existing = binMarkers.current.get(bin.id);
-        if (existing) {
-          existing.setIcon(icon);
-        } else {
-          const m = L.marker([bin.lat, bin.lng], { icon })
-            .addTo(map)
-            .on('click', () => onBinClick?.(bin));
-          binMarkers.current.set(bin.id, m);
+      import('leaflet.markercluster').then(() => {
+        const map = mapRef.current!;
+        const useCluster = bins.length > 200;
+
+        if (clusterGroupRef.current) {
+          map.removeLayer(clusterGroupRef.current);
+          clusterGroupRef.current = null;
         }
-      });
-      binMarkers.current.forEach((m, id) => {
-        if (!shown.has(id)) {
-          m.remove();
-          binMarkers.current.delete(id);
+        markerTypeMap.current = new WeakMap();
+
+        if (useCluster) {
+          const group = L.markerClusterGroup({
+            chunkedLoading: true,
+            maxClusterRadius: 50,
+            spiderfyOnMaxZoom: true,
+            showCoverageOnHover: false,
+            zoomToBoundsOnClick: true,
+            iconCreateFunction: (cluster) => {
+              const count = cluster.getChildCount();
+              const markers = cluster.getAllChildMarkers();
+              const typeCounts: Record<string, number> = {};
+              markers.forEach((m: L.Marker) => {
+                const t = markerTypeMap.current.get(m) || 'otro';
+                typeCounts[t] = (typeCounts[t] || 0) + 1;
+              });
+              const dominant = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+              const dominantMeta = CONTAINERS.find(c => c.type === dominant);
+              const typeColor = dominantMeta?.color || '#5C6670';
+              const size = count < 10 ? 36 : count < 100 ? 44 : 52;
+              return L.divIcon({
+                className: '',
+                html: `<div style="
+                  width:${size}px;height:${size}px;border-radius:50%;
+                  background:${typeColor};border:3px solid #fff;
+                  display:flex;align-items:center;justify-content:center;
+                  color:#fff;font-size:${size < 44 ? 12 : 14}px;font-weight:700;
+                  box-shadow:0 2px 8px rgba(0,0,0,.3);
+                ">${count}</div>`,
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2],
+              });
+            },
+          });
+          clusterGroupRef.current = group;
+          map.addLayer(group);
+
+          bins.forEach((bin) => {
+            if (!filterOk(bin.type)) return;
+            const selected = bin.id === selectedId;
+            const size = selected ? 44 : 34;
+            const html = pinHtml({ type: bin.type, size, selected });
+            const icon = L.divIcon({ className: '', html, iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.25] });
+            const m = L.marker([bin.lat, bin.lng], { icon })
+              .on('click', () => onBinClick?.(bin));
+            markerTypeMap.current.set(m, bin.type);
+            binMarkers.current.set(bin.id, m);
+            group.addLayer(m);
+          });
+        } else {
+          const shown = new Set<string>();
+          bins.forEach((bin) => {
+            if (!filterOk(bin.type)) return;
+            shown.add(bin.id);
+            const selected = bin.id === selectedId;
+            const size = selected ? 44 : 34;
+            const html = pinHtml({ type: bin.type, size, selected });
+            const icon = L.divIcon({ className: '', html, iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.25] });
+            const existing = binMarkers.current.get(bin.id);
+            if (existing) {
+              existing.setIcon(icon);
+            } else {
+              const m = L.marker([bin.lat, bin.lng], { icon })
+                .addTo(map)
+                .on('click', () => onBinClick?.(bin));
+              binMarkers.current.set(bin.id, m);
+            }
+          });
+          binMarkers.current.forEach((m, id) => {
+            if (!shown.has(id)) {
+              m.remove();
+              binMarkers.current.delete(id);
+            }
+          });
         }
       });
     });

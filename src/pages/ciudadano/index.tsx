@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui/Icon';
 import { THEME } from '@/lib/theme';
 import { CONTAINERS, containerMeta } from '@/lib/constants';
 import { Bin, ContainerType } from '@/types';
-import type { RoutePoint } from '@/components/MapView';
+import type { RoutePoint, FlyTo } from '@/components/MapView';
 
 const MIN_ZOOM_BINS = 14;
 const MAX_BARRIO_SPAN = 0.058;
@@ -53,6 +53,21 @@ export default function CiudadanoHome() {
   const [filter, setFilter] = useState<Set<ContainerType>>(new Set(['mixto', 'papel', 'envases']));
   const [selected, setSelected] = useState<Bin | null>(null);
   const [route, setRoute] = useState<Bin[]>([]);
+  const [flyTo, setFlyTo] = useState<FlyTo | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  const locateMe = () => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setFlyTo({ lat: pos.coords.latitude, lng: pos.coords.longitude, zoom: 17 });
+        setLocating(false);
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  };
 
   const bboxRef = useRef<string | null>(null);
   const zoomRef = useRef<number>(17);
@@ -113,8 +128,9 @@ export default function CiudadanoHome() {
           onBoundsChange={handleBoundsChange}
           variant={darkMode ? 'dark' : 'light'}
           routePoints={routePoints}
+          flyTo={flyTo}
           minZoom={13}
-          maxZoom={17}
+          maxZoom={19}
         />
         {(!isBarrioView || mapZoom < MIN_ZOOM_BINS) && (
           <div style={{
@@ -189,6 +205,23 @@ export default function CiudadanoHome() {
         </button>
 
         <div style={{ flex: 1 }} />
+
+        {/* Mi ubicación */}
+        <button
+          onClick={locateMe}
+          disabled={locating}
+          title="Mi ubicación"
+          style={{
+            width: 38, height: 38, borderRadius: 999,
+            background: '#fff',
+            border: `1px solid ${T.border}`,
+            boxShadow: '0 2px 8px rgba(0,0,0,.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', opacity: locating ? 0.6 : 1,
+          }}
+        >
+          <Icon name="locate" size={18} color={T.primary} />
+        </button>
 
         {/* Dark mode toggle */}
         <button
