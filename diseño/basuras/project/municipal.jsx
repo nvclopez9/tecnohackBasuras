@@ -5,6 +5,7 @@
 const MUNI_NAV = [
   { id: 'dashboard', label: 'Cuadro de mandos', icon: 'cluster' },
   { id: 'mapa',      label: 'Mapa analítico',   icon: 'pin' },
+  { id: 'temporal',  label: 'Mapa horario',      icon: 'clock' },
   { id: 'lista',     label: 'Incidencias',      icon: 'list' },
   { id: 'rutas',     label: 'Rutas',            icon: 'route' },
 ];
@@ -226,6 +227,9 @@ const ViewDashboard = () => (
       <KPI label="% alta prio." value="17%" sub="48 reportes" accent={ECO_TOKENS.danger}/>
     </div>
 
+    {/* Container-type filter strip */}
+    <ContainerTypeStrip/>
+
     {/* Charts row 1 */}
     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 12, marginBottom: 12 }}>
       <ChartCard title="Evolución de incidencias" subtitle="últimos 30 días, por estado">
@@ -263,6 +267,87 @@ const ChartCard = ({ title, subtitle, children }) => (
     {children}
   </div>
 );
+
+// Horizontal strip of clickable container-type filter cards
+const ContainerTypeStrip = () => {
+  const [active, setActive] = React.useState(new Set());
+  const counts = { organico: 62, envases: 88, papel: 41, vidrio: 32, resto: 28, ropa: 22, aceite: 18, baterias: 14 };
+  const trends = { organico: 8, envases: 14, papel: -3, vidrio: 2, resto: 5, ropa: 0, aceite: -2, baterias: 1 };
+
+  const toggle = (k) => {
+    const next = new Set(active);
+    next.has(k) ? next.delete(k) : next.add(k);
+    setActive(next);
+  };
+
+  return (
+    <div style={{
+      background: '#fff', border: `1px solid ${ECO_TOKENS.border}`,
+      borderRadius: 8, padding: 14, marginBottom: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: ECO_TOKENS.ink }}>Filtrar por tipo de contenedor</div>
+        <div style={{ marginLeft: 8, fontSize: 11.5, color: ECO_TOKENS.inkMid }}>
+          {active.size === 0 ? 'Toca un tipo para filtrar mapa, tabla y gráficos' : `${active.size} tipo${active.size > 1 ? 's' : ''} seleccionado${active.size > 1 ? 's' : ''}`}
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          {active.size > 0 && (
+            <button onClick={() => setActive(new Set())} style={{
+              background: 'transparent', border: 'none', color: ECO_TOKENS.primary,
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>Limpiar</button>
+          )}
+          <Button kind="ghost" size="sm" icon={<Icon name="export" size={12}/>}>Exportar selección</Button>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
+        {Object.entries(ECO_TOKENS.containers).map(([k, c]) => {
+          const isActive = active.has(k);
+          const trend = trends[k];
+          return (
+            <button key={k} onClick={() => toggle(k)} style={{
+              padding: '12px 10px', borderRadius: 10, textAlign: 'left',
+              background: isActive ? c.color + '14' : ECO_TOKENS.appBg,
+              border: `1.5px solid ${isActive ? c.color : ECO_TOKENS.border}`,
+              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', flexDirection: 'column', gap: 6,
+              transition: 'all .15s',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: c.color + (isActive ? '30' : '20'),
+                  color: c.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>{containerIcon(k, 18)}</span>
+                {isActive && (
+                  <span style={{
+                    width: 18, height: 18, borderRadius: 999, background: c.color, color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}><Icon name="check" size={11}/></span>
+                )}
+              </div>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: ECO_TOKENS.ink, lineHeight: 1.15 }}>
+                {c.label}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                <span style={{ fontSize: 18, fontWeight: 700, color: ECO_TOKENS.ink, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                  {counts[k]}
+                </span>
+                <span style={{ fontSize: 10, color: ECO_TOKENS.inkMid }}>incidencias</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 600,
+                color: trend > 0 ? ECO_TOKENS.danger : trend < 0 ? ECO_TOKENS.success : ECO_TOKENS.inkMid }}>
+                {trend > 0 ? '▲' : trend < 0 ? '▼' : '—'} {Math.abs(trend)}%
+                <span style={{ color: ECO_TOKENS.inkMid, fontWeight: 500 }}>vs. semana ant.</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 // Inline area chart (SVG)
 const AreaChart = () => {
@@ -688,6 +773,7 @@ const MunicipalPanel = ({ initial = 'dashboard', dataLabel }) => {
         <Sidebar active={view} onNavigate={setView}/>
         {view === 'dashboard' && <ViewDashboard/>}
         {view === 'mapa'      && <ViewMapa/>}
+        {view === 'temporal'  && <ViewTemporal/>}
         {view === 'lista'     && <ViewLista onOpen={() => setView('detalle')}/>}
         {view === 'detalle'   && <ViewListaDetalle/>}
         {view === 'rutas'     && <ViewMapa/>}

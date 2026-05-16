@@ -11,8 +11,12 @@ export default function LandingPage() {
   const router = useRouter();
 
   const choose = (role: Role) => {
-    setRole(role);
-    router.push(role === 'ciudadano' ? '/ciudadano' : '/municipal');
+    if (role === 'municipal') {
+      setRole(role);
+      router.push('/municipal');
+    } else {
+      router.push('/ciudadano/login');
+    }
   };
 
   return (

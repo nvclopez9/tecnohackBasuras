@@ -295,4 +295,47 @@ const SCMap = ({
   );
 };
 
-Object.assign(window, { SCMap });
+Object.assign(window, { SCMap, streetPath });
+
+// Manhattan-style path through pixel coordinates with rounded corners.
+// Approximates "go along streets" without a real routing engine.
+// pts: [{x, y}] in normalized 0..1 coords. Returns SVG path d-string.
+function streetPath(pts, w, h, opts = {}) {
+  const r = opts.radius ?? 10;
+  if (!pts || pts.length < 2) return '';
+  // Convert
+  const P = pts.map(p => ({ x: p.x * w, y: p.y * h }));
+  let d = `M ${P[0].x.toFixed(1)} ${P[0].y.toFixed(1)}`;
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1], b = P[i];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    // skip degenerate
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+    // pick orientation that resembles a grid: alternate H-V / V-H by index
+    const horizFirst = (i % 2 === 1);
+    if (horizFirst) {
+      // go horizontal then vertical
+      if (Math.abs(dx) < r * 2 || Math.abs(dy) < r * 2) {
+        d += ` L ${b.x.toFixed(1)} ${a.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+      } else {
+        const sx = Math.sign(dx), sy = Math.sign(dy);
+        const cx = b.x, cy = a.y;
+        d += ` L ${(cx - sx * r).toFixed(1)} ${cy.toFixed(1)}`;
+        d += ` Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${cx.toFixed(1)} ${(cy + sy * r).toFixed(1)}`;
+        d += ` L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+      }
+    } else {
+      // go vertical then horizontal
+      if (Math.abs(dx) < r * 2 || Math.abs(dy) < r * 2) {
+        d += ` L ${a.x.toFixed(1)} ${b.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+      } else {
+        const sx = Math.sign(dx), sy = Math.sign(dy);
+        const cx = a.x, cy = b.y;
+        d += ` L ${cx.toFixed(1)} ${(cy - sy * r).toFixed(1)}`;
+        d += ` Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${(cx + sx * r).toFixed(1)} ${cy.toFixed(1)}`;
+        d += ` L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+      }
+    }
+  }
+  return d;
+}

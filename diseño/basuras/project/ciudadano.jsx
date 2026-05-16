@@ -5,8 +5,9 @@
 const TabBar = ({ active, onChange, showLabels = true }) => {
   const tabs = [
     { id: 'home',    icon: 'home',   label: 'Inicio' },
+    { id: 'ranking', icon: 'trophy', label: 'Ranking' },
     { id: 'camara',  icon: 'camera', label: 'Reportar', center: true },
-    { id: 'lista',   icon: 'list',   label: 'Mis reportes' },
+    { id: 'lista',   icon: 'list',   label: 'Reportes' },
     { id: 'cuenta',  icon: 'user',   label: 'Cuenta' },
   ];
   return (
@@ -20,17 +21,19 @@ const TabBar = ({ active, onChange, showLabels = true }) => {
       zIndex: 30,
     }}>
       {tabs.map(t => {
-        const isActive = active === t.id || (active === 'detalle' && t.id === 'lista');
+        const isActive = active === t.id
+          || (active === 'detalle' && t.id === 'lista')
+          || (active === 'ruta'    && t.id === 'home');
         const color = isActive ? ECO_TOKENS.primary : ECO_TOKENS.inkMid;
         return (
           <button key={t.id} onClick={() => onChange(t.id)} style={{
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-            gap: 3, padding: '8px 4px 4px', background: 'transparent', border: 'none',
-            cursor: 'pointer', color, fontFamily: 'inherit',
+            gap: 3, padding: '8px 2px 4px', background: 'transparent', border: 'none',
+            cursor: 'pointer', color, fontFamily: 'inherit', minWidth: 0,
           }}>
             {t.center ? (
               <span style={{
-                width: 44, height: 44, borderRadius: 999,
+                width: 46, height: 46, borderRadius: 999,
                 background: isActive ? ECO_TOKENS.primaryDark : ECO_TOKENS.primary,
                 color: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -40,11 +43,11 @@ const TabBar = ({ active, onChange, showLabels = true }) => {
                 <Icon name={t.icon} size={22}/>
               </span>
             ) : (
-              <Icon name={t.icon} size={22} color={color}/>
+              <Icon name={t.icon} size={21} color={color}/>
             )}
             {showLabels && (
-              <span style={{ fontSize: 10.5, fontWeight: isActive ? 600 : 500, color,
-                marginTop: t.center ? -2 : 0 }}>
+              <span style={{ fontSize: 9.5, fontWeight: isActive ? 600 : 500, color,
+                marginTop: t.center ? -2 : 0, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
                 {t.label}
               </span>
             )}
@@ -59,6 +62,12 @@ const TabBar = ({ active, onChange, showLabels = true }) => {
 const ScreenHome = ({ onPinSelect, mapVariant, chipsLayout }) => {
   const [activeFilters, setActiveFilters] = React.useState(new Set(['all']));
   const [selectedPin, setSelectedPin] = React.useState(null);
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const [darkMap, setDarkMap] = React.useState(false);
+
+  // Effective map variant: dark toggle overrides the tweak.
+  const effectiveVariant = darkMap ? 'satellite' : mapVariant;
+  const isDark = darkMap;
 
   const toggle = (id) => {
     const next = new Set(activeFilters);
@@ -73,12 +82,14 @@ const ScreenHome = ({ onPinSelect, mapVariant, chipsLayout }) => {
     ? ECO_REPORTS
     : ECO_REPORTS.filter(r => activeFilters.has(r.container));
 
+  const activeCount = activeFilters.has('all') ? 0 : activeFilters.size;
+
   return (
     <div style={{ position: 'absolute', inset: 0, background: '#000' }}>
       {/* MAP */}
       <SCMap
         width={390} height={844}
-        variant={mapVariant}
+        variant={effectiveVariant}
         showStreetNames={true}
         reports={visibleReports}
         selectedId={selectedPin?.id}
@@ -90,7 +101,9 @@ const ScreenHome = ({ onPinSelect, mapVariant, chipsLayout }) => {
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0,
         padding: '50px 16px 12px',
-        background: 'linear-gradient(180deg, rgba(255,255,255,.95) 60%, rgba(255,255,255,0))',
+        background: isDark
+          ? 'linear-gradient(180deg, rgba(20,30,42,.92) 60%, rgba(20,30,42,0))'
+          : 'linear-gradient(180deg, rgba(255,255,255,.95) 60%, rgba(255,255,255,0))',
         zIndex: 20,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -100,91 +113,165 @@ const ScreenHome = ({ onPinSelect, mapVariant, chipsLayout }) => {
             fontWeight: 700, fontSize: 16,
           }}>Ec</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: ECO_TOKENS.ink, lineHeight: 1.1 }}>EcoChicharro</div>
-            <div style={{ fontSize: 11, color: ECO_TOKENS.inkMid }}>Santa Cruz · Centro</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: isDark ? '#fff' : ECO_TOKENS.ink, lineHeight: 1.1 }}>EcoChicharro</div>
+            <div style={{ fontSize: 11, color: isDark ? 'rgba(255,255,255,.7)' : ECO_TOKENS.inkMid }}>Santa Cruz · Centro</div>
           </div>
           <button style={{
-            width: 36, height: 36, borderRadius: 999, background: '#fff',
-            border: `1px solid ${ECO_TOKENS.border}`,
+            width: 36, height: 36, borderRadius: 999,
+            background: isDark ? 'rgba(255,255,255,.12)' : '#fff',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,.18)' : ECO_TOKENS.border}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: ECO_TOKENS.ink, cursor: 'pointer',
+            color: isDark ? '#fff' : ECO_TOKENS.ink, cursor: 'pointer',
           }}>
             <Icon name="bell" size={18}/>
           </button>
         </div>
 
-        {/* Search */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: '#fff', border: `1px solid ${ECO_TOKENS.border}`,
-          borderRadius: 10, padding: '9px 12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,.04)',
-        }}>
-          <Icon name="search" size={16} color={ECO_TOKENS.inkMid}/>
-          <input placeholder="Buscar calle, plaza, contenedor…" readOnly style={{
-            border: 'none', outline: 'none', flex: 1, fontSize: 13.5,
-            color: ECO_TOKENS.ink, background: 'transparent', fontFamily: 'inherit',
-          }}/>
+        {/* Search + Filters button */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 8,
+            background: isDark ? 'rgba(255,255,255,.95)' : '#fff',
+            border: `1px solid ${isDark ? 'transparent' : ECO_TOKENS.border}`,
+            borderRadius: 10, padding: '9px 12px',
+            boxShadow: '0 1px 3px rgba(0,0,0,.08)',
+          }}>
+            <Icon name="search" size={16} color={ECO_TOKENS.inkMid}/>
+            <input placeholder="Buscar calle, plaza, contenedor…" readOnly style={{
+              border: 'none', outline: 'none', flex: 1, fontSize: 13.5,
+              color: ECO_TOKENS.ink, background: 'transparent', fontFamily: 'inherit',
+            }}/>
+          </div>
+          <button onClick={() => setFiltersOpen(!filtersOpen)} style={{
+            position: 'relative',
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '0 12px', height: 38,
+            borderRadius: 10, fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer',
+            background: filtersOpen ? ECO_TOKENS.primary : (isDark ? 'rgba(255,255,255,.95)' : '#fff'),
+            border: filtersOpen ? `1px solid ${ECO_TOKENS.primary}` : `1px solid ${isDark ? 'transparent' : ECO_TOKENS.border}`,
+            color: filtersOpen ? '#fff' : ECO_TOKENS.ink,
+            boxShadow: '0 1px 3px rgba(0,0,0,.08)',
+          }}>
+            <Icon name="filter" size={15}/>
+            <span>Filtros</span>
+            {activeCount > 0 && (
+              <span style={{
+                background: filtersOpen ? '#fff' : ECO_TOKENS.primary,
+                color: filtersOpen ? ECO_TOKENS.primary : '#fff',
+                fontSize: 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+                minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                marginLeft: 2,
+              }}>{activeCount}</span>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Filter chips */}
-      {chipsLayout === 'scroll' ? (
+      {/* Filters panel — appears below header when open */}
+      {filtersOpen && (
         <div style={{
-          position: 'absolute', top: 132, left: 0, right: 0, zIndex: 18,
-          padding: '0 14px',
-        }}>
-          <div style={{
-            display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6,
-            scrollbarWidth: 'none',
-          }}>
-            <Chip label="Todos" active={activeFilters.has('all')} onClick={() => toggle('all')} size="sm"/>
-            {Object.keys(ECO_TOKENS.containers).map(k => (
-              <ContainerChip key={k} type={k}
-                active={activeFilters.has(k)}
-                onClick={() => toggle(k)} size="sm"/>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div style={{
-          position: 'absolute', top: 130, left: 14, right: 14, zIndex: 18,
+          position: 'absolute', top: 138, left: 12, right: 12, zIndex: 19,
           background: '#fff', border: `1px solid ${ECO_TOKENS.border}`,
-          borderRadius: 12, padding: 10,
-          boxShadow: '0 2px 8px rgba(0,0,0,.06)',
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6,
+          borderRadius: 14, padding: 12,
+          boxShadow: '0 8px 24px rgba(0,0,0,.16)',
+          animation: 'slideDown .2s ease-out',
         }}>
-          {Object.keys(ECO_TOKENS.containers).map(k => {
-            const c = ECO_TOKENS.containers[k];
-            const active = activeFilters.has(k);
-            return (
-              <button key={k} onClick={() => toggle(k)} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                padding: '6px 4px', borderRadius: 8,
-                background: active ? ECO_TOKENS.primaryTint : 'transparent',
-                border: active ? `1px solid ${ECO_TOKENS.primary}` : '1px solid transparent',
-                cursor: 'pointer', fontFamily: 'inherit',
-                color: active ? ECO_TOKENS.primary : ECO_TOKENS.inkMid,
-              }}>
-                <span style={{ color: c.color }}>{containerIcon(k, 16)}</span>
-                <span style={{ fontSize: 9.5, fontWeight: 600 }}>{c.label}</span>
-              </button>
-            );
-          })}
+          <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: ECO_TOKENS.inkMid, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Tipo de contenedor
+            </div>
+            <button onClick={() => { setActiveFilters(new Set(['all'])); }} style={{
+              marginLeft: 'auto', background: 'transparent', border: 'none',
+              color: ECO_TOKENS.primary, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>Limpiar</button>
+          </div>
+
+          {chipsLayout === 'grid' ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {Object.keys(ECO_TOKENS.containers).map(k => {
+                const c = ECO_TOKENS.containers[k];
+                const active = activeFilters.has(k);
+                return (
+                  <button key={k} onClick={() => toggle(k)} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                    padding: '8px 4px', borderRadius: 8,
+                    background: active ? ECO_TOKENS.primaryTint : ECO_TOKENS.appBg,
+                    border: active ? `1px solid ${ECO_TOKENS.primary}` : `1px solid ${ECO_TOKENS.border}`,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    color: active ? ECO_TOKENS.primary : ECO_TOKENS.ink,
+                  }}>
+                    <span style={{ color: c.color }}>{containerIcon(k, 18)}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600 }}>{c.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <Chip label="Todos" active={activeFilters.has('all')} onClick={() => toggle('all')} size="sm"/>
+              {Object.keys(ECO_TOKENS.containers).map(k => (
+                <ContainerChip key={k} type={k}
+                  active={activeFilters.has(k)}
+                  onClick={() => toggle(k)} size="sm"/>
+              ))}
+            </div>
+          )}
+
+          {/* Status row */}
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${ECO_TOKENS.borderSoft}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: ECO_TOKENS.inkMid, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              Estado
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {Object.entries(ECO_TOKENS.statuses).map(([k, v]) => (
+                <Chip key={k} label={v.label} dotColor={v.color} size="sm"/>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Floating "my location" */}
-      <button style={{
-        position: 'absolute', right: 14, bottom: 200,
-        width: 46, height: 46, borderRadius: 999,
-        background: '#fff', border: `1px solid ${ECO_TOKENS.border}`,
-        boxShadow: '0 2px 8px rgba(0,0,0,.12)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer', color: ECO_TOKENS.primary, zIndex: 18,
-      }}>
-        <Icon name="locate" size={20}/>
-      </button>
+      {/* Floating action stack: my location + theme toggle */}
+      <div style={{ position: 'absolute', right: 14, bottom: 200, display: 'flex', flexDirection: 'column', gap: 10, zIndex: 18 }}>
+        <button onClick={() => setDarkMap(!darkMap)} title={darkMap ? 'Modo claro' : 'Modo oscuro'} style={{
+          width: 46, height: 46, borderRadius: 999,
+          background: darkMap
+            ? 'linear-gradient(135deg, #1F2937 0%, #0B1220 100%)'
+            : '#fff',
+          border: `1px solid ${darkMap ? 'rgba(255,255,255,.18)' : ECO_TOKENS.border}`,
+          boxShadow: darkMap
+            ? '0 2px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)'
+            : '0 2px 8px rgba(0,0,0,.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: darkMap ? '#F2C94C' : ECO_TOKENS.inkMid,
+          fontSize: 20, lineHeight: 1, fontFamily: 'inherit',
+          transition: 'all .2s',
+        }}>
+          {darkMap ? (
+            // Sun (when dark, tap to go light)
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="4" fill="currentColor"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+            </svg>
+          ) : (
+            // Moon (when light, tap to go dark)
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" fill="currentColor" fillOpacity="0.15"/>
+            </svg>
+          )}
+        </button>
+        <button title="Mi ubicación" style={{
+          width: 46, height: 46, borderRadius: 999,
+          background: '#fff', border: `1px solid ${ECO_TOKENS.border}`,
+          boxShadow: '0 2px 8px rgba(0,0,0,.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: ECO_TOKENS.primary,
+        }}>
+          <Icon name="locate" size={20}/>
+        </button>
+      </div>
 
       {/* Bottom sheet for selected pin */}
       {selectedPin && (
@@ -193,7 +280,7 @@ const ScreenHome = ({ onPinSelect, mapVariant, chipsLayout }) => {
           background: '#fff', borderRadius: '16px 16px 0 0',
           padding: '14px 18px 18px',
           boxShadow: '0 -6px 22px rgba(0,0,0,.12)',
-          zIndex: 22,
+          zIndex: 22, maxHeight: 540, overflowY: 'auto',
           borderTop: `1px solid ${ECO_TOKENS.border}`,
         }}>
           <div style={{ width: 36, height: 4, background: ECO_TOKENS.border, borderRadius: 999, margin: '0 auto 12px' }}/>
@@ -206,7 +293,7 @@ const ScreenHome = ({ onPinSelect, mapVariant, chipsLayout }) => {
               <div style={{ fontSize: 12.5, color: ECO_TOKENS.inkMid, marginTop: 2 }}>
                 {selectedPin.addr} · 120 m
               </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                 <Badge color={ECO_TOKENS.statuses[selectedPin.status].color}
                        label={ECO_TOKENS.statuses[selectedPin.status].label} size="sm"/>
                 <span style={{ fontSize: 11, color: ECO_TOKENS.inkMid, alignSelf: 'center' }}>
@@ -218,10 +305,35 @@ const ScreenHome = ({ onPinSelect, mapVariant, chipsLayout }) => {
               background: 'transparent', border: 'none', color: ECO_TOKENS.inkMid, cursor: 'pointer',
             }}><Icon name="x" size={18}/></button>
           </div>
-          <Button kind="primary" size="md" full icon={<Icon name="camera" size={16}/>}
-                  onClick={() => onPinSelect(selectedPin)} style={{ marginTop: 14 }}>
-            Reportar incidencia aquí
-          </Button>
+
+          {/* Hourly tip */}
+          <HourlyMini containerType={selectedPin.container}/>
+
+          {/* Inspect link */}
+          <button onClick={() => onPinSelect && onPinSelect(selectedPin, 'inspect')} style={{
+            marginTop: 12, width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 12px', borderRadius: 10,
+            background: ECO_TOKENS.appBg, border: `1px solid ${ECO_TOKENS.border}`,
+            cursor: 'pointer', fontFamily: 'inherit', color: ECO_TOKENS.ink,
+            fontSize: 12.5, fontWeight: 600,
+          }}>
+            <Icon name="search" size={14} color={ECO_TOKENS.primary}/>
+            <span style={{ flex: 1, textAlign: 'left' }}>Inspeccionar este contenedor</span>
+            <span style={{ fontSize: 11, color: ECO_TOKENS.inkMid }}>Histórico, recogidas, incidencias</span>
+            <Icon name="chevron-r" size={14} color={ECO_TOKENS.inkMid}/>
+          </button>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <Button kind="secondary" size="md" full icon={<Icon name="plus" size={15}/>}
+                    onClick={() => onPinSelect && onPinSelect(selectedPin, 'ruta')}>
+              Añadir a ruta
+            </Button>
+            <Button kind="primary" size="md" full icon={<Icon name="camera" size={15}/>}
+                    onClick={() => onPinSelect && onPinSelect(selectedPin, 'reportar')}>
+              Reportar
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -671,7 +783,10 @@ const ScreenCuenta = () => (
     </div>
 
     <div style={{ position: 'absolute', inset: '170px 0 82px 0', overflowY: 'auto', padding: '16px' }}>
-      {/* Stats */}
+      {/* Puntos + gamificación */}
+      <CuentaPoints/>
+
+      {/* Stats de reportes */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: 14, border: `1px solid ${ECO_TOKENS.border}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: ECO_TOKENS.inkMid, textTransform: 'uppercase', letterSpacing: 0.4 }}>Enviadas</div>
@@ -748,8 +863,21 @@ const CiudadanoApp = ({ initial = 'home', mapVariant = 'light', chipsLayout = 's
   const [screen, setScreen] = React.useState(initial);
   const [report, setReport] = React.useState(null);
 
+  const onPinSelect = (r, action = 'reportar') => {
+    setReport(r);
+    if (action === 'ruta')    setScreen('ruta');
+    else if (action === 'inspect') setScreen('contenedor');
+    else setScreen('camara');
+  };
+
   let body;
-  if (screen === 'home')    body = <ScreenHome mapVariant={mapVariant} chipsLayout={chipsLayout} onPinSelect={(r) => { setReport(r); setScreen('camara'); }}/>;
+  if (screen === 'home')    body = <ScreenHome mapVariant={mapVariant} chipsLayout={chipsLayout} onPinSelect={onPinSelect}/>;
+  else if (screen === 'ruta')       body = <ScreenRuta mapVariant={mapVariant}/>;
+  else if (screen === 'ranking')    body = <ScreenRanking/>;
+  else if (screen === 'contenedor') body = <ScreenContenedor container={report} mapVariant={mapVariant}
+                                       onBack={() => setScreen('home')}
+                                       onReport={(c) => { setReport(c); setScreen('camara'); }}
+                                       onAddRoute={() => setScreen('ruta')}/>;
   else if (screen === 'camara')  body = <ScreenCamara prefilled={report} onSubmit={() => setScreen('lista')}/>;
   else if (screen === 'lista')   body = <ScreenLista onOpen={(r) => { setReport(r); setScreen('detalle'); }}/>;
   else if (screen === 'detalle') body = <ScreenDetalle report={report || ECO_REPORTS[2]} onBack={() => setScreen('lista')}/>;

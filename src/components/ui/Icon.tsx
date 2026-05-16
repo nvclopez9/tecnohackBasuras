@@ -6,7 +6,8 @@ export type IconName =
   | 'check' | 'x' | 'edit' | 'trash' | 'image' | 'gallery' | 'flash' | 'flip'
   | 'bell' | 'globe' | 'help' | 'logout' | 'route' | 'leaf' | 'bottle'
   | 'flame' | 'shirt' | 'drop' | 'battery' | 'bag' | 'news' | 'question'
-  | 'plus' | 'export' | 'sort' | 'cluster' | 'dot' | 'menu' | 'kebab' | 'send';
+  | 'plus' | 'export' | 'sort' | 'cluster' | 'dot' | 'menu' | 'kebab' | 'send'
+  | 'trophy' | 'medal' | 'clock' | 'star';
 
 interface Props {
   name: IconName;
@@ -70,6 +71,10 @@ export function Icon({ name, size = 18, color = 'currentColor', stroke = 1.7 }: 
     case 'menu': return <svg {...p}><path d="M4 6h16M4 12h16M4 18h16" /></svg>;
     case 'kebab': return <svg {...p}><circle cx="12" cy="5" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="19" r="1" fill="currentColor" /></svg>;
     case 'send': return <svg {...p}><path d="M4 12 20 4l-6 16-3-7-7-1Z" /></svg>;
+    case 'trophy': return <svg {...p}><path d="M7 4h10v4a5 5 0 0 1-10 0Z" /><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3" /><path d="M9 14h6l-1 4h-4Z" /><path d="M8 20h8" /></svg>;
+    case 'medal': return <svg {...p}><path d="M8 3h8l-3 6h-2Z" /><circle cx="12" cy="15" r="6" /><path d="M10 14l2 2 3-3" /></svg>;
+    case 'clock': return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
+    case 'star': return <svg {...p}><path d="m12 3 2.7 5.6 6.3.8-4.6 4.4 1.2 6.2L12 17l-5.6 3 1.2-6.2L3 9.4l6.3-.8Z" /></svg>;
     default: return null;
   }
 }

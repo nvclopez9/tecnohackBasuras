@@ -110,6 +110,14 @@ const Icon = ({ name, size = 18, color = 'currentColor', stroke = 1.7 }) => {
     case 'dot':        return <svg {...props}><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg>;
     case 'menu':       return <svg {...props}><path d="M4 6h16M4 12h16M4 18h16"/></svg>;
     case 'kebab':      return <svg {...props}><circle cx="12" cy="5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="19" r="1" fill="currentColor"/></svg>;
+    case 'trophy':     return <svg {...props}><path d="M7 4h10v4a5 5 0 0 1-10 0Z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/><path d="M9 14h6l-1 4h-4Z"/><path d="M8 20h8"/></svg>;
+    case 'medal':      return <svg {...props}><path d="M8 3h8l-3 6h-2Z"/><circle cx="12" cy="15" r="6"/><path d="M10 14l2 2 3-3"/></svg>;
+    case 'clock':      return <svg {...props}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
+    case 'star':       return <svg {...props}><path d="m12 3 2.7 5.6 6.3.8-4.6 4.4 1.2 6.2L12 17l-5.6 3 1.2-6.2L3 9.4l6.3-.8Z"/></svg>;
+    case 'sparkle':    return <svg {...props}><path d="M12 4v6M12 14v6M4 12h6M14 12h6"/><path d="M7 7l3 3M14 14l3 3M17 7l-3 3M10 14l-3 3"/></svg>;
+    case 'happy':      return <svg {...props}><circle cx="12" cy="12" r="9"/><path d="M8 14c1 1.5 2.4 2.2 4 2.2s3-.7 4-2.2"/><circle cx="9" cy="10" r=".9" fill="currentColor"/><circle cx="15" cy="10" r=".9" fill="currentColor"/></svg>;
+    case 'meh':        return <svg {...props}><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5h7"/><circle cx="9" cy="10" r=".9" fill="currentColor"/><circle cx="15" cy="10" r=".9" fill="currentColor"/></svg>;
+    case 'sad':        return <svg {...props}><circle cx="12" cy="12" r="9"/><path d="M8 16c1-1.5 2.4-2.2 4-2.2s3 .7 4 2.2"/><circle cx="9" cy="10" r=".9" fill="currentColor"/><circle cx="15" cy="10" r=".9" fill="currentColor"/></svg>;
     default: return null;
   }
 };

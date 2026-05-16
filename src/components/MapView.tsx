@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Map as LMap, Marker } from 'leaflet';
+import type { Map as LMap, Marker, Polyline } from 'leaflet';
 import { Bin, Report, ContainerType } from '@/types';
 import { SC_TENERIFE } from '@/lib/theme';
 import { pinHtml } from '@/lib/pin';
+import { TruckRoute } from '@/lib/truckRoutes';
 
 interface Props {
   bins?: Bin[];
@@ -13,6 +14,7 @@ interface Props {
   showHeatmap?: boolean;
   containerFilter?: Set<ContainerType> | null;
   variant?: 'light' | 'voyager';
+  truckRoutes?: TruckRoute[];
 }
 
 const TILES = {
@@ -29,6 +31,7 @@ export default function MapView({
   showHeatmap = false,
   containerFilter = null,
   variant = 'light',
+  truckRoutes = [],
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
@@ -36,6 +39,9 @@ export default function MapView({
   const reportMarkers = useRef<Map<string, Marker>>(new Map());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const heatRef = useRef<any>(null);
+  // truck route layers
+  const routePolylines = useRef<Polyline[]>([]);
+  const routeMarkers = useRef<Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
 
   // init map
@@ -67,6 +73,9 @@ export default function MapView({
       mapRef.current = null;
       binMarkers.current.clear();
       reportMarkers.current.clear();
+      // clean truck route layers
+      routePolylines.current = [];
+      routeMarkers.current = [];
       setMapReady(false);
     };
   }, [variant]);
@@ -168,6 +177,69 @@ export default function MapView({
         .addTo(map);
     });
   }, [reports, showHeatmap, containerFilter, mapReady]);
+
+  // truck routes — polylines + stop markers
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    import('leaflet').then((L) => {
+      const map = mapRef.current!;
+
+      // Remove previous route layers
+      routePolylines.current.forEach((p) => p.remove());
+      routePolylines.current = [];
+      routeMarkers.current.forEach((m) => m.remove());
+      routeMarkers.current = [];
+
+      if (!truckRoutes || truckRoutes.length === 0) return;
+
+      truckRoutes.forEach((route) => {
+        const latlngs = route.stops.map((s) => [s.lat, s.lng] as [number, number]);
+
+        // Polyline
+        const polyline = L.polyline(latlngs, {
+          color: route.color,
+          weight: 4,
+          opacity: 0.8,
+          dashArray: route.status === 'planificada' ? '8,6' : undefined,
+        }).addTo(map);
+        routePolylines.current.push(polyline);
+
+        // Stop markers
+        route.stops.forEach((stop, idx) => {
+          const isCompleted = idx < route.completedStops;
+          const size = 14;
+          const html = isCompleted
+            ? `<div style="
+                width:${size}px;height:${size}px;border-radius:50%;
+                background:${route.color};
+                border:2px solid #fff;
+                box-shadow:0 1px 4px rgba(0,0,0,.3);
+              "></div>`
+            : `<div style="
+                width:${size}px;height:${size}px;border-radius:50%;
+                background:#fff;
+                border:2.5px solid ${route.color};
+                box-shadow:0 1px 4px rgba(0,0,0,.2);
+              "></div>`;
+
+          const icon = L.divIcon({
+            className: '',
+            html,
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2],
+          });
+
+          const marker = L.marker([stop.lat, stop.lng], { icon })
+            .addTo(map)
+            .bindTooltip(
+              `<strong>${stop.address}</strong><br>${stop.containerType} · ${stop.visitedAt}`,
+              { direction: 'top', offset: [0, -8] }
+            );
+          routeMarkers.current.push(marker);
+        });
+      });
+    });
+  }, [truckRoutes, mapReady]);
 
   return (
     <div

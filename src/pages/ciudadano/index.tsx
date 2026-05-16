@@ -123,6 +123,24 @@ export default function CiudadanoHome() {
         {bins.filter((b) => !filterSet || filterSet.has(b.type)).length} papeleras
       </div>
 
+      {/* RUTA BUTTON */}
+      {!selected && (
+        <button
+          onClick={() => router.push('/ciudadano/ruta')}
+          style={{
+            position: 'absolute', right: 14, bottom: NAV_HEIGHT + 16, zIndex: 18,
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: '#fff', border: `1.5px solid ${T.primary}`, borderRadius: 999,
+            padding: '7px 14px', boxShadow: '0 2px 8px rgba(0,90,156,.15)',
+            fontSize: 12.5, fontWeight: 700, color: T.primary,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          <Icon name="route" size={15} color={T.primary} />
+          Planificar ruta
+        </button>
+      )}
+
       {/* BOTTOM SHEET */}
       {selected && (
         <div style={{
@@ -157,16 +175,24 @@ export default function CiudadanoHome() {
               <Icon name="x" size={18} />
             </button>
           </div>
-          <Button
-            kind="primary" size="md" full
-            icon={<Icon name="camera" size={16} />}
-            style={{ marginTop: 14 }}
-            onClick={() =>
-              router.push(`/ciudadano/reportar?binId=${selected.id}&containerType=${selected.type}`)
-            }
-          >
-            Reportar incidencia aquí
-          </Button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <Button
+              kind="secondary" size="md" full
+              icon={<Icon name="list" size={16} />}
+              onClick={() => router.push(`/ciudadano/contenedor/${selected.id}`)}
+            >
+              Ver detalles
+            </Button>
+            <Button
+              kind="primary" size="md" full
+              icon={<Icon name="camera" size={16} />}
+              onClick={() =>
+                router.push(`/ciudadano/reportar?binId=${selected.id}&containerType=${selected.type}`)
+              }
+            >
+              Reportar incidencia aquí
+            </Button>
+          </div>
         </div>
       )}
     </CitizenLayout>

@@ -14,12 +14,14 @@ interface Tab {
 
 const TABS: Tab[] = [
   { id: 'home', icon: 'home', label: 'Inicio', href: '/ciudadano' },
+  { id: 'ranking', icon: 'trophy', label: 'Ranking', href: '/ciudadano/ranking' },
   { id: 'reportar', icon: 'camera', label: 'Reportar', href: '/ciudadano/reportar', center: true },
-  { id: 'incidencias', icon: 'list', label: 'Mis reportes', href: '/ciudadano/incidencias' },
+  { id: 'incidencias', icon: 'list', label: 'Reportes', href: '/ciudadano/incidencias' },
   { id: 'cuenta', icon: 'user', label: 'Cuenta', href: '/ciudadano/cuenta' },
 ];
 
 function activeId(pathname: string): string {
+  if (pathname.startsWith('/ciudadano/ranking')) return 'ranking';
   if (pathname.startsWith('/ciudadano/reportar')) return 'reportar';
   if (pathname.startsWith('/ciudadano/incidencias')) return 'incidencias';
   if (pathname.startsWith('/ciudadano/cuenta')) return 'cuenta';

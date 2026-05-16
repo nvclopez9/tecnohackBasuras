@@ -47,10 +47,13 @@ function App() {
                    subtitle="iPhone 13/14 — 390 × 844 · La tab bar es navegable, tócala para cambiar de pantalla">
           {[
             { id: 'home',    label: '01 · Inicio (Mapa)' },
-            { id: 'camara',  label: '02 · Cámara + reporte' },
-            { id: 'lista',   label: '03 · Mis reportes' },
-            { id: 'detalle', label: '04 · Detalle' },
-            { id: 'cuenta',  label: '05 · Cuenta' },
+            { id: 'contenedor', label: '02 · Inspeccionar contenedor' },
+            { id: 'ruta',    label: '03 · Ruta + banner llegada' },
+            { id: 'camara',  label: '04 · Cámara + reporte' },
+            { id: 'lista',   label: '05 · Mis reportes' },
+            { id: 'detalle', label: '06 · Detalle' },
+            { id: 'ranking', label: '07 · Ranking semanal' },
+            { id: 'cuenta',  label: '08 · Cuenta + puntos' },
           ].map(s => (
             <DCArtboard key={s.id} id={`c-${s.id}`} label={s.label} width={430} height={880}>
               <IOSDevice width={390} height={844}>
@@ -72,8 +75,9 @@ function App() {
           {[
             { id: 'dashboard', label: '01 · Cuadro de mandos' },
             { id: 'mapa',      label: '02 · Mapa analítico + heatmap' },
-            { id: 'lista',     label: '03 · Lista / tabla' },
-            { id: 'detalle',   label: '04 · Lista + Detalle' },
+            { id: 'temporal',  label: '03 · Mapa horario + slider' },
+            { id: 'lista',     label: '04 · Lista / tabla' },
+            { id: 'detalle',   label: '05 · Lista + Detalle' },
           ].map(v => (
             <DCArtboard key={v.id} id={`m-${v.id}`} label={v.label} width={1440} height={900}>
               <MunicipalPanel initial={v.id} dataLabel={`Municipal · ${v.label}`}/>

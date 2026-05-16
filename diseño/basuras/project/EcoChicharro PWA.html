@@ -17,6 +17,9 @@
   }
   * { box-sizing: border-box; }
   button { font-family: inherit; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes slideUp   { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse     { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: .55; } }
 </style>
 </head>
 <body>
@@ -31,11 +34,15 @@
 <script type="text/babel" src="ios-frame.jsx"></script>
 <script type="text/babel" src="tweaks-panel.jsx"></script>
 
-<!-- app components -->
-<script type="text/babel" src="system.jsx"></script>
-<script type="text/babel" src="map-sc.jsx"></script>
-<script type="text/babel" src="ciudadano.jsx"></script>
-<script type="text/babel" src="municipal.jsx"></script>
-<script type="text/babel" src="app.jsx"></script>
+  <!-- app components -->
+  <script type="text/babel" src="system.jsx"></script>
+  <script type="text/babel" src="map-sc.jsx"></script>
+  <script type="text/babel" src="gamification.jsx"></script>
+  <script type="text/babel" src="ciudadano.jsx"></script>
+  <script type="text/babel" src="ciudadano-extras.jsx"></script>
+  <script type="text/babel" src="contenedor-screen.jsx"></script>
+  <script type="text/babel" src="municipal.jsx"></script>
+  <script type="text/babel" src="municipal-temporal.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
 </body>
 </html>
