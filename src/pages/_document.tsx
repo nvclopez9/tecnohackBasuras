@@ -2,6 +2,7 @@ import { Html, Head, Main, NextScript } from 'next/document';
 
 export default function Document() {
   return (
+    // hola
     <Html lang="es">
       <Head>
         <meta name="application-name" content="EcoChicharro" />
