@@ -58,28 +58,28 @@ export default function CiudadanoHome() {
         style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
           padding: '16px 16px 14px',
-          background: 'linear-gradient(180deg, rgba(246,248,250,.97) 62%, rgba(246,248,250,0))',
+          background: `linear-gradient(180deg, ${T.primary} 0%, ${T.primaryDark} 100%)`,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 8, background: T.primary,
+            width: 32, height: 32, borderRadius: 8, background: '#ffffff22',
             color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontWeight: 700, fontSize: 16,
           }}>Ec</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, lineHeight: 1.1 }}>EcoChicharro</div>
-            <div style={{ fontSize: 11, color: T.inkMid }}>Santa Cruz de Tenerife</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.1 }}>EcoChicharro</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Santa Cruz de Tenerife</div>
           </div>
           <button
             style={{
-              width: 36, height: 36, borderRadius: 999, background: '#fff',
-              border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: T.ink, cursor: 'pointer',
+              width: 36, height: 36, borderRadius: 999, background: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: '#fff', cursor: 'pointer',
             }}
             aria-label="Notificaciones"
           >
-            <Icon name="bell" size={18} />
+            <Icon name="bell" size={18} color="#fff" />
           </button>
         </div>
 

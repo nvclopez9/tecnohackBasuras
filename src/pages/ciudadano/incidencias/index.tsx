@@ -48,9 +48,9 @@ export default function IncidenciasPage() {
       {/* Header */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5,
-        padding: '18px 16px 12px', background: '#fff', borderBottom: `1px solid ${T.border}`,
+        padding: '18px 16px 12px', background: `linear-gradient(180deg, ${T.primary} 0%, ${T.primaryDark} 100%)`, borderBottom: '1px solid rgba(255,255,255,0.12)',
       }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: T.ink }}>Mis reportes</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>Mis reportes</div>
         <div className="no-scrollbar" style={{ marginTop: 10, display: 'flex', gap: 6, overflowX: 'auto' }}>
           <Chip label={`Todas · ${reports.length}`} active={filter === 'all'} onClick={() => setFilter('all')} size="sm" />
           {STATUSES.map((s) => {
