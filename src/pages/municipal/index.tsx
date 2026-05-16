@@ -1,14 +1,26 @@
 import { useEffect, useState, ReactNode } from 'react';
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
+  AreaChart as RAreaChart, Area, Tooltip, ResponsiveContainer, CartesianGrid,
+} from 'recharts';
 import MunicipalShell from '@/components/municipal/MunicipalShell';
 import { KPI, Button } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { THEME } from '@/lib/theme';
-import { CONTAINERS, INCIDENTS, STATUSES, containerMeta, incidentMeta } from '@/lib/constants';
+import { CONTAINERS, INCIDENTS, STATUSES } from '@/lib/constants';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Stats, Report } from '@/types';
 
 const T = THEME;
 const DAY = 86400000;
+
+const tooltipStyle = {
+  background: '#fff',
+  border: `1px solid ${T.border}`,
+  borderRadius: 8,
+  fontSize: 12,
+  boxShadow: '0 4px 14px rgba(0,0,0,.1)',
+};
 
 function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
@@ -23,33 +35,37 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
 }
 
 function DonutChart({ stats }: { stats: Stats }) {
-  const data = STATUSES.map((s) => ({ label: s.label, value: stats.byStatus[s.status] ?? 0, color: s.color }));
-  const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  const cx = 80, cy = 80, r = 60, sw = 22;
-  let a = -Math.PI / 2;
-  const arcs = data.filter((d) => d.value > 0).map((d) => {
-    const ang = (d.value / total) * Math.PI * 2;
-    const a0 = a, a1 = a + ang;
-    a = a1;
-    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
-    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-    const large = ang > Math.PI ? 1 : 0;
-    return { d: `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`, color: d.color };
-  });
+  const data = STATUSES.map((s) => ({ name: s.label, value: stats.byStatus[s.status] ?? 0, color: s.color }));
+  const shown = data.filter((d) => d.value > 0);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-      <svg width="150" height="150" viewBox="0 0 160 160">
-        {arcs.map((arc, i) => (
-          <path key={i} d={arc.d} fill="none" stroke={arc.color} strokeWidth={sw} strokeLinecap="round" />
-        ))}
-        <text x="80" y="78" textAnchor="middle" fontSize="26" fontWeight="700" fill={T.ink}>{stats.total}</text>
-        <text x="80" y="96" textAnchor="middle" fontSize="10" fill={T.inkMid}>total</text>
-      </svg>
+      <div style={{ width: 150, height: 150, position: 'relative', flex: '0 0 150px' }}>
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie
+              data={shown.length ? shown : [{ name: 'Sin datos', value: 1, color: T.border }]}
+              dataKey="value" nameKey="name" cx="50%" cy="50%"
+              innerRadius={45} outerRadius={68} paddingAngle={2} stroke="none"
+              isAnimationActive
+            >
+              {(shown.length ? shown : [{ color: T.border }]).map((d, i) => <Cell key={i} fill={d.color} />)}
+            </Pie>
+            <Tooltip contentStyle={tooltipStyle} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+        }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: T.ink }}>{stats.total}</div>
+          <div style={{ fontSize: 10, color: T.inkMid }}>total</div>
+        </div>
+      </div>
       <div style={{ flex: 1 }}>
         {data.map((d) => (
-          <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: `1px solid ${T.borderSoft}` }}>
+          <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: `1px solid ${T.borderSoft}` }}>
             <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color }} />
-            <span style={{ flex: 1, fontSize: 12.5, color: T.ink }}>{d.label}</span>
+            <span style={{ flex: 1, fontSize: 12.5, color: T.ink }}>{d.name}</span>
             <span style={{ fontSize: 12.5, fontWeight: 600, color: T.ink }}>{d.value}</span>
             <span style={{ fontSize: 10.5, color: T.inkMid, width: 34, textAlign: 'right' }}>
               {Math.round((d.value / (stats.total || 1)) * 100)}%
@@ -62,19 +78,21 @@ function DonutChart({ stats }: { stats: Stats }) {
 }
 
 function BarRows({ data }: { data: { label: string; value: number; color: string }[] }) {
-  const max = Math.max(...data.map((d) => d.value), 1);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-      {data.map((d) => (
-        <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: d.color, flex: '0 0 8px' }} />
-          <span style={{ width: 78, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5 }}>{d.label}</span>
-          <div style={{ flex: 1, height: 8, borderRadius: 4, background: T.appBg, overflow: 'hidden' }}>
-            <div style={{ width: `${(d.value / max) * 100}%`, height: '100%', background: d.color, borderRadius: 4 }} />
-          </div>
-          <span style={{ width: 24, textAlign: 'right', color: T.ink, fontWeight: 600 }}>{d.value}</span>
-        </div>
-      ))}
+    <div style={{ width: '100%', height: data.length * 30 + 8 }}>
+      <ResponsiveContainer>
+        <BarChart data={data} layout="vertical" margin={{ left: 0, right: 18, top: 0, bottom: 0 }}>
+          <XAxis type="number" hide allowDecimals={false} />
+          <YAxis
+            type="category" dataKey="label" width={88}
+            tick={{ fontSize: 11, fill: T.ink }} axisLine={false} tickLine={false}
+          />
+          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: T.borderSoft }} />
+          <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={13} isAnimationActive>
+            {data.map((d, i) => <Cell key={i} fill={d.color} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -88,35 +106,37 @@ function AreaChart({ reports }: { reports: Report[] }) {
     const idx = Math.floor((r.createdAt - start) / DAY);
     if (idx >= 0 && idx < days) counts[idx] += 1;
   });
-  const max = Math.max(...counts, 4);
-  const w = 520, h = 170, pl = 26, pr = 10, pt = 10, pb = 22;
-  const innerW = w - pl - pr, innerH = h - pt - pb;
-  const pts = counts.map((v, i) => [pl + (i / (days - 1)) * innerW, pt + (1 - v / max) * innerH]);
-  const line = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
-  const area = line + ` L ${pts[days - 1][0]},${pt + innerH} L ${pts[0][0]},${pt + innerH} Z`;
+  const data = counts.map((v, i) => ({
+    day: new Date(start + i * DAY).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+    count: v,
+  }));
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={170}>
-      <defs>
-        <linearGradient id="ag" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={T.primary} stopOpacity="0.26" />
-          <stop offset="100%" stopColor={T.primary} stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      {[0, 0.5, 1].map((t, i) => (
-        <line key={i} x1={pl} x2={w - pr} y1={pt + t * innerH} y2={pt + t * innerH} stroke={T.border} strokeWidth="1" />
-      ))}
-      <path d={area} fill="url(#ag)" />
-      <path d={line} fill="none" stroke={T.primary} strokeWidth="2.2" strokeLinejoin="round" />
-      {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="2.6" fill={T.primary} />)}
-      {[0, 7, 13].map((i) => {
-        const d = new Date(start + i * DAY);
-        return (
-          <text key={i} x={pts[i][0]} y={h - 6} fill={T.inkMid} fontSize="9" textAnchor="middle">
-            {d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-          </text>
-        );
-      })}
-    </svg>
+    <div style={{ width: '100%', height: 175 }}>
+      <ResponsiveContainer>
+        <RAreaChart data={data} margin={{ left: -6, right: 10, top: 8, bottom: 0 }}>
+          <defs>
+            <linearGradient id="ag" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor={T.primary} stopOpacity={0.28} />
+              <stop offset="100%" stopColor={T.primary} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke={T.borderSoft} vertical={false} />
+          <XAxis
+            dataKey="day" tick={{ fontSize: 9, fill: T.inkMid }}
+            axisLine={false} tickLine={false} interval={6} minTickGap={8}
+          />
+          <YAxis
+            tick={{ fontSize: 9, fill: T.inkMid }} axisLine={false} tickLine={false}
+            allowDecimals={false} width={30}
+          />
+          <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: T.inkMid }} />
+          <Area
+            type="monotone" dataKey="count" name="Incidencias"
+            stroke={T.primary} strokeWidth={2.2} fill="url(#ag)" isAnimationActive
+          />
+        </RAreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 

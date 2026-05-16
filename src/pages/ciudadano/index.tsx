@@ -7,11 +7,20 @@ import { Icon } from '@/components/ui/Icon';
 import { THEME } from '@/lib/theme';
 import { CONTAINERS, containerMeta } from '@/lib/constants';
 import { Bin, ContainerType } from '@/types';
-import type { RoutePoint, FlyTo } from '@/components/MapView';
+import type { RoutePoint, FlyTo, MapVariant, LatLng } from '@/components/MapView';
 
 const MIN_ZOOM_BINS = 14;
 const MAX_BARRIO_SPAN = 0.058;
 const T = THEME;
+
+const MAP_LAYERS: { id: MapVariant; label: string; swatch: string }[] = [
+  { id: 'light', label: 'Claro', swatch: 'linear-gradient(135deg,#F4F6F8,#DDE3E8)' },
+  { id: 'voyager', label: 'Calles', swatch: 'linear-gradient(135deg,#E7EFE3,#CBD9C9)' },
+  { id: 'dark', label: 'Oscuro', swatch: 'linear-gradient(135deg,#3A3A48,#1A1A26)' },
+  { id: 'satellite', label: 'Satélite', swatch: 'linear-gradient(135deg,#5C6E45,#2E3A24)' },
+];
+
+interface GeoHit { display: string; label: string; lat: number; lng: number; }
 
 function bboxFitsBarrio(bbox: string): boolean {
   const parts = bbox.split(',').map(Number);
@@ -48,24 +57,39 @@ export default function CiudadanoHome() {
   const [bins, setBins] = useState<Bin[]>([]);
   const [mapZoom, setMapZoom] = useState(17);
   const [isBarrioView, setIsBarrioView] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [mapVariant, setMapVariant] = useState<MapVariant>('light');
+  const [layerOpen, setLayerOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<Set<ContainerType>>(new Set(['mixto', 'papel', 'envases']));
   const [selected, setSelected] = useState<Bin | null>(null);
   const [route, setRoute] = useState<Bin[]>([]);
   const [flyTo, setFlyTo] = useState<FlyTo | null>(null);
+  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{ display: string; lat: number; lng: number }[]>([]);
+  const [searchResults, setSearchResults] = useState<GeoHit[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Estilo de mapa preferido (persistido).
+  useEffect(() => {
+    const saved = localStorage.getItem('eco-map-variant') as MapVariant | null;
+    if (saved && MAP_LAYERS.some((l) => l.id === saved)) setMapVariant(saved);
+  }, []);
+  const pickLayer = (id: MapVariant) => {
+    setMapVariant(id);
+    localStorage.setItem('eco-map-variant', id);
+    setLayerOpen(false);
+  };
 
   const locateMe = () => {
     if (!navigator.geolocation) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setFlyTo({ lat: pos.coords.latitude, lng: pos.coords.longitude, zoom: 17 });
+        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(here);
+        setFlyTo({ ...here, zoom: 17 });
         setLocating(false);
       },
       () => setLocating(false),
@@ -125,18 +149,18 @@ export default function CiudadanoHome() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (!searchQuery.trim()) { setSearchResults([]); setSearchOpen(false); return; }
     searchTimer.current = setTimeout(() => {
-      fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery.trim() + ', Santa Cruz de Tenerife')}&format=json&limit=5&addressdetails=0`)
+      fetch(`/api/geocode?q=${encodeURIComponent(searchQuery.trim())}`)
         .then(r => r.json())
-        .then((data: { display_name: string; lat: string; lon: string }[]) => {
-          setSearchResults(data.map(d => ({ display: d.display_name, lat: parseFloat(d.lat), lng: parseFloat(d.lon) })));
-          setSearchOpen(data.length > 0);
+        .then((data: GeoHit[]) => {
+          setSearchResults(Array.isArray(data) ? data : []);
+          setSearchOpen(true);
         })
-        .catch(() => {});
+        .catch(() => { setSearchResults([]); setSearchOpen(true); });
     }, 400);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [searchQuery]);
 
-  const selectSearchResult = (r: { display: string; lat: number; lng: number }) => {
+  const selectSearchResult = (r: GeoHit) => {
     setFlyTo({ lat: r.lat, lng: r.lng, zoom: 17 });
     setSearchQuery('');
     setSearchResults([]);
@@ -153,9 +177,10 @@ export default function CiudadanoHome() {
           selectedId={selected?.id}
           onBinClick={b => setSelected(b)}
           onBoundsChange={handleBoundsChange}
-          variant={darkMode ? 'dark' : 'light'}
+          variant={mapVariant}
           routePoints={routePoints}
           flyTo={flyTo}
+          userLocation={userLocation}
           minZoom={13}
           maxZoom={19}
         />
@@ -217,14 +242,18 @@ export default function CiudadanoHome() {
               marginTop: 4, boxShadow: '0 4px 16px rgba(0,0,0,.12)',
               overflow: 'hidden',
             }}>
-              {searchResults.map(r => (
-                <div key={r.display} style={{
+              {searchResults.length === 0 ? (
+                <div style={{ padding: '12px 14px', fontSize: 12.5, color: T.inkMid }}>
+                  Sin resultados para “{searchQuery.trim()}”.
+                </div>
+              ) : searchResults.map((r, i) => (
+                <div key={`${r.display}-${i}`} style={{
                   display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
                   padding: '9px 12px', borderBottom: `1px solid ${T.borderSoft}`,
                 }} onClick={() => selectSearchResult(r)}>
                   <Icon name="pin" size={14} color={T.primary} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: T.ink }}>Calle / Plaza</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: T.ink }}>{r.label}</div>
                     <div style={{ fontSize: 11, color: T.inkMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.display}</div>
                   </div>
                   <Icon name="locate" size={14} color={T.primary} />
@@ -285,21 +314,50 @@ export default function CiudadanoHome() {
           <Icon name="locate" size={18} color={T.primary} />
         </button>
 
-        {/* Dark mode toggle */}
-        <button
-          onClick={() => setDarkMode(d => !d)}
-          title={darkMode ? 'Modo claro' : 'Modo oscuro'}
-          style={{
-            width: 38, height: 38, borderRadius: 999,
-            background: darkMode ? '#1a1a2e' : '#fff',
-            border: `1px solid ${darkMode ? '#444' : T.border}`,
-            boxShadow: '0 2px 8px rgba(0,0,0,.12)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <Icon name={darkMode ? 'sun' : 'moon'} size={18} color={darkMode ? '#ffd700' : T.inkMid} />
-        </button>
+        {/* Selector de capa de mapa */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setLayerOpen(o => !o)}
+            title="Estilo de mapa"
+            style={{
+              width: 38, height: 38, borderRadius: 999,
+              background: layerOpen ? T.primary : '#fff',
+              border: `1px solid ${layerOpen ? T.primary : T.border}`,
+              boxShadow: '0 2px 8px rgba(0,0,0,.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="layers" size={18} color={layerOpen ? '#fff' : T.inkMid} />
+          </button>
+          {layerOpen && (
+            <div style={{
+              position: 'absolute', top: 44, right: 0, zIndex: 24,
+              background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12,
+              padding: 8, boxShadow: '0 4px 16px rgba(0,0,0,.14)',
+              display: 'grid', gridTemplateColumns: 'repeat(2, 64px)', gap: 6,
+            }}>
+              {MAP_LAYERS.map(l => {
+                const active = mapVariant === l.id;
+                return (
+                  <button
+                    key={l.id}
+                    onClick={() => pickLayer(l.id)}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      padding: 5, borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit',
+                      background: active ? T.primaryTint : 'transparent',
+                      border: `1px solid ${active ? T.primary : 'transparent'}`,
+                    }}
+                  >
+                    <span style={{ width: '100%', height: 34, borderRadius: 6, background: l.swatch, border: `1px solid ${T.border}` }} />
+                    <span style={{ fontSize: 10, fontWeight: 600, color: active ? T.primary : T.inkMid }}>{l.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* FILTER DROPDOWN PANEL */}

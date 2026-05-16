@@ -10,22 +10,49 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { THEME } from '@/lib/theme';
 import { CONTAINERS, incidentMeta, statusMeta } from '@/lib/constants';
 import { Report } from '@/types';
+import type { ZoneCircle } from '@/components/MapView';
 import { TRUCK_ROUTES, TruckRoute, routeEfficiency } from '@/lib/truckRoutes';
 
 const T = THEME;
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
+
+type MapLayer = 'pines' | 'heatmap' | 'zonas' | 'rutas';
+
+/**
+ * Agrupa las incidencias en celdas espaciales (~165 m) y devuelve círculos
+ * coloreados por intensidad: verde (baja) → ámbar → rojo (alta). Aproxima
+ * las "calles con más tráfico de incidencias".
+ */
+function zonesFromReports(reports: Report[]): ZoneCircle[] {
+  const CELL = 0.0016;
+  const cells = new Map<string, { lat: number; lng: number; n: number }>();
+  reports.forEach((r) => {
+    const key = `${Math.round(r.lat / CELL)}:${Math.round(r.lng / CELL)}`;
+    const c = cells.get(key);
+    if (c) { c.lat += r.lat; c.lng += r.lng; c.n += 1; }
+    else cells.set(key, { lat: r.lat, lng: r.lng, n: 1 });
+  });
+  const arr = [...cells.values()];
+  const max = Math.max(1, ...arr.map((c) => c.n));
+  return arr.map((c) => {
+    const ratio = c.n / max;
+    const color = ratio > 0.66 ? T.danger : ratio > 0.33 ? T.warn : T.success;
+    return { lat: c.lat / c.n, lng: c.lng / c.n, radius: 70 + ratio * 140, color };
+  });
+}
 
 export default function MunicipalMapa() {
   const { reports, mergeReport } = useReports({ poll: true });
   const { bins } = useBins();
   const isMobile = useIsMobile();
   const [filters, setFilters] = useState<MuniFilters>(EMPTY_FILTERS);
-  const [layer, setLayer] = useState<'pines' | 'heatmap' | 'rutas'>('pines');
+  const [layer, setLayer] = useState<MapLayer>('pines');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [routesSheetOpen, setRoutesSheetOpen] = useState(false);
 
   const filtered = useMemo(() => applyFilters(reports, filters), [reports, filters]);
   const selected = filtered.find((r) => r.id === selectedId) ?? reports.find((r) => r.id === selectedId) ?? null;
+  const zoneCircles = useMemo(() => (layer === 'zonas' ? zonesFromReports(filtered) : []), [layer, filtered]);
 
   return (
     <MunicipalShell
@@ -39,9 +66,10 @@ export default function MunicipalMapa() {
         {/* MAP */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0 }}>
           <MapView
-            reports={layer === 'rutas' ? [] : filtered}
+            reports={layer === 'rutas' || layer === 'zonas' ? [] : filtered}
             bins={layer === 'pines' ? bins : []}
             showHeatmap={layer === 'heatmap'}
+            zoneCircles={zoneCircles}
             truckRoutes={layer === 'rutas' ? TRUCK_ROUTES : []}
             selectedId={selectedId}
             onReportClick={(r) => setSelectedId(r.id)}
@@ -49,9 +77,10 @@ export default function MunicipalMapa() {
           />
 
           {/* layer toggle */}
-          <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6, zIndex: 500 }}>
+          <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6, zIndex: 500, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <MapBtn icon={<Icon name="pin" size={13} />} label="Pines" active={layer === 'pines'} onClick={() => setLayer('pines')} />
             <MapBtn icon={<Icon name="flame" size={13} />} label="Heatmap" active={layer === 'heatmap'} onClick={() => setLayer('heatmap')} />
+            <MapBtn icon={<Icon name="cluster" size={13} />} label="Zonas" active={layer === 'zonas'} onClick={() => setLayer('zonas')} />
             <MapBtn icon={<Icon name="route" size={13} />} label="Rutas" active={layer === 'rutas'} onClick={() => setLayer('rutas')} />
           </div>
 
@@ -82,6 +111,24 @@ export default function MunicipalMapa() {
                 <div style={{ height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#005A9C,#E8A317,#C0392B)' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.inkMid, marginTop: 3 }}>
                   <span>Baja</span><span>Alta</span>
+                </div>
+              </div>
+            ) : layer === 'zonas' ? (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+                  Intensidad por zona
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {[
+                    { c: T.success, l: 'Tráfico bajo de incidencias' },
+                    { c: T.warn, l: 'Tráfico medio' },
+                    { c: T.danger, l: 'Tráfico alto · zona caliente' },
+                  ].map((x) => (
+                    <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: T.ink }}>
+                      <span style={{ width: 12, height: 12, borderRadius: 999, background: x.c, opacity: 0.6, border: `1.5px solid ${x.c}`, flexShrink: 0 }} />
+                      {x.l}
+                    </div>
+                  ))}
                 </div>
               </div>
             ) : (

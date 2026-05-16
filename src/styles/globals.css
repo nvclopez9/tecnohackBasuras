@@ -59,3 +59,21 @@ button, input, textarea, select {
 /* Ocultar scrollbar (tiras de chips) */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Halo del marcador "mi ubicación" */
+@keyframes ecoPulse {
+  0%   { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* Skeletons de carga */
+@keyframes ecoShimmer {
+  0%   { background-position: -360px 0; }
+  100% { background-position: 360px 0; }
+}
+.eco-skeleton {
+  background: linear-gradient(90deg, #EEF2F5 25%, #E2E6EA 50%, #EEF2F5 75%);
+  background-size: 720px 100%;
+  animation: ecoShimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}

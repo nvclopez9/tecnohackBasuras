@@ -14,6 +14,22 @@ function relativeDate(ts: number): string {
   return new Date(ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 
+function SkeletonCard() {
+  return (
+    <div style={{
+      background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12,
+      padding: 12, marginBottom: 10, display: 'flex', gap: 12,
+    }}>
+      <div className="eco-skeleton" style={{ width: 64, height: 64, flex: '0 0 64px' }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
+        <div className="eco-skeleton" style={{ width: 120, height: 14 }} />
+        <div className="eco-skeleton" style={{ width: '70%', height: 13 }} />
+        <div className="eco-skeleton" style={{ width: '45%', height: 11 }} />
+      </div>
+    </div>
+  );
+}
+
 function Thumb({ report }: { report: Report }) {
   const c = containerMeta(report.containerType);
   if (report.thumbnail) {
@@ -71,7 +87,7 @@ export default function IncidenciasPage() {
       {/* List */}
       <div className="thin-scroll" style={{ position: 'absolute', inset: `122px 0 ${NAV_HEIGHT}px 0`, overflowY: 'auto', padding: '10px 14px 16px' }}>
         {loading && reports.length === 0 ? (
-          <p style={{ textAlign: 'center', color: T.inkMid, padding: 40, fontSize: 13 }}>Cargando…</p>
+          <>{[0, 1, 2, 3].map((i) => <SkeletonCard key={i} />)}</>
         ) : shown.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{

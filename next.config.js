@@ -49,9 +49,17 @@ const withPWA = require('next-pwa')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     if (isServer) {
       config.externals.push('better-sqlite3');
+    }
+    // La BD SQLite vive en data/ ; sus ficheros WAL/SHM cambian en cada
+    // consulta y dispararían un bucle infinito de recompilación de Next.
+    if (dev) {
+      config.watchOptions = {
+        ...(config.watchOptions || {}),
+        ignored: ['**/node_modules/**', '**/.git/**', '**/data/**'],
+      };
     }
     return config;
   },

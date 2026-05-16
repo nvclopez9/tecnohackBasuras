@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Map as LMap, Marker, Polyline } from 'leaflet';
+import type { Map as LMap, Marker, Polyline, MarkerCluster } from 'leaflet';
 import { Bin, Report, ContainerType } from '@/types';
 import { SC_TENERIFE } from '@/lib/theme';
 import { pinHtml } from '@/lib/pin';
@@ -10,6 +10,13 @@ export interface RoutePoint { lat: number; lng: number; id: string; }
 
 export interface FlyTo { lat: number; lng: number; zoom: number; }
 
+export interface LatLng { lat: number; lng: number; }
+
+/** Círculo de densidad para la capa analítica "intensidad por zona". */
+export interface ZoneCircle { lat: number; lng: number; radius: number; color: string; }
+
+export type MapVariant = 'light' | 'voyager' | 'dark' | 'satellite';
+
 interface Props {
   bins?: Bin[];
   reports?: Report[];
@@ -19,18 +26,28 @@ interface Props {
   onBoundsChange?: (bbox: string, zoom: number) => void;
   showHeatmap?: boolean;
   containerFilter?: Set<ContainerType> | null;
-  variant?: 'light' | 'voyager' | 'dark';
+  variant?: MapVariant;
   truckRoutes?: TruckRoute[];
   routePoints?: RoutePoint[];
   minZoom?: number;
   maxZoom?: number;
   flyTo?: FlyTo | null;
+  userLocation?: LatLng | null;
+  zoneCircles?: ZoneCircle[];
 }
 
-const TILES = {
+const TILES: Record<MapVariant, string> = {
   light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
   voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+};
+
+const TILE_ATTRIB: Record<MapVariant, string> = {
+  light: '&copy; <a href="https://carto.com/">CARTO</a> · OpenStreetMap',
+  voyager: '&copy; <a href="https://carto.com/">CARTO</a> · OpenStreetMap',
+  dark: '&copy; <a href="https://carto.com/">CARTO</a> · OpenStreetMap',
+  satellite: '&copy; <a href="https://www.esri.com/">Esri</a> · Maxar · Earthstar Geographics',
 };
 
 export default function MapView({
@@ -48,6 +65,8 @@ export default function MapView({
   minZoom = 12,
   maxZoom = 19,
   flyTo,
+  userLocation = null,
+  zoneCircles = [],
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
@@ -78,7 +97,7 @@ export default function MapView({
         maxZoom,
       });
       L.tileLayer(TILES[variant], {
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OpenStreetMap',
+        attribution: TILE_ATTRIB[variant],
         maxZoom: 20,
       }).addTo(map);
       mapRef.current = map;
@@ -121,95 +140,85 @@ export default function MapView({
 
   const clusterGroupRef = useRef<any>(null);
   const markerTypeMap = useRef<WeakMap<L.Marker, ContainerType>>(new WeakMap());
+  const userLocMarker = useRef<Marker | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const zoneCirclesRef = useRef<any[]>([]);
 
-  // bin markers
+  // bin markers — siempre agrupados con leaflet.markercluster para evitar
+  // el solapamiento caótico de pines. El pin seleccionado se saca del clúster
+  // para que sea siempre visible.
   useEffect(() => {
     if (!mapRef.current) return;
-    import('leaflet').then((L) => {
+    import('leaflet').then((Lmod) => {
       import('leaflet.markercluster').then(() => {
+        // El plugin markercluster parchea el objeto CJS de Leaflet; el espacio
+        // de nombres ESM no expone esa clave nueva, así que usamos `.default`.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const L: any = (Lmod as any).default ?? Lmod;
         const map = mapRef.current!;
-        const useCluster = bins.length > 200;
 
+        // Limpia capas previas
         if (clusterGroupRef.current) {
           map.removeLayer(clusterGroupRef.current);
           clusterGroupRef.current = null;
         }
+        binMarkers.current.forEach((m) => m.remove());
+        binMarkers.current.clear();
         markerTypeMap.current = new WeakMap();
 
-        if (useCluster) {
-          const group = L.markerClusterGroup({
-            chunkedLoading: true,
-            maxClusterRadius: 50,
-            spiderfyOnMaxZoom: true,
-            showCoverageOnHover: false,
-            zoomToBoundsOnClick: true,
-            iconCreateFunction: (cluster) => {
-              const count = cluster.getChildCount();
-              const markers = cluster.getAllChildMarkers();
-              const typeCounts: Record<string, number> = {};
-              markers.forEach((m: L.Marker) => {
-                const t = markerTypeMap.current.get(m) || 'otro';
-                typeCounts[t] = (typeCounts[t] || 0) + 1;
-              });
-              const dominant = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-              const dominantMeta = CONTAINERS.find(c => c.type === dominant);
-              const typeColor = dominantMeta?.color || '#5C6670';
-              const size = count < 10 ? 36 : count < 100 ? 44 : 52;
-              return L.divIcon({
-                className: '',
-                html: `<div style="
-                  width:${size}px;height:${size}px;border-radius:50%;
-                  background:${typeColor};border:3px solid #fff;
-                  display:flex;align-items:center;justify-content:center;
-                  color:#fff;font-size:${size < 44 ? 12 : 14}px;font-weight:700;
-                  box-shadow:0 2px 8px rgba(0,0,0,.3);
-                ">${count}</div>`,
-                iconSize: [size, size],
-                iconAnchor: [size / 2, size / 2],
-              });
-            },
-          });
-          clusterGroupRef.current = group;
-          map.addLayer(group);
+        const group = L.markerClusterGroup({
+          chunkedLoading: true,
+          maxClusterRadius: 44,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          zoomToBoundsOnClick: true,
+          disableClusteringAtZoom: 19,
+          iconCreateFunction: (cluster: MarkerCluster) => {
+            const count = cluster.getChildCount();
+            const markers = cluster.getAllChildMarkers();
+            const typeCounts: Record<string, number> = {};
+            markers.forEach((m: Marker) => {
+              const t = markerTypeMap.current.get(m) || 'otro';
+              typeCounts[t] = (typeCounts[t] || 0) + 1;
+            });
+            const dominant = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+            const dominantMeta = CONTAINERS.find((c) => c.type === dominant);
+            const typeColor = dominantMeta?.color || '#5C6670';
+            const size = count < 10 ? 34 : count < 50 ? 40 : count < 200 ? 46 : 54;
+            const label = count < 1000 ? String(count) : `${Math.round(count / 100) / 10}k`;
+            return L.divIcon({
+              className: '',
+              html: `<div style="
+                width:${size}px;height:${size}px;border-radius:50%;
+                background:${typeColor};border:3px solid #fff;
+                display:flex;align-items:center;justify-content:center;
+                color:#fff;font-size:${size < 40 ? 12 : 14}px;font-weight:800;
+                box-shadow:0 3px 10px rgba(0,0,0,.32);
+              ">${label}</div>`,
+              iconSize: [size, size],
+              iconAnchor: [size / 2, size / 2],
+            });
+          },
+        });
+        clusterGroupRef.current = group;
+        map.addLayer(group);
 
-          bins.forEach((bin) => {
-            if (!filterOk(bin.type)) return;
-            const selected = bin.id === selectedId;
-            const size = selected ? 44 : 34;
-            const html = pinHtml({ type: bin.type, size, selected });
-            const icon = L.divIcon({ className: '', html, iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.25] });
-            const m = L.marker([bin.lat, bin.lng], { icon })
-              .on('click', () => onBinClick?.(bin));
-            markerTypeMap.current.set(m, bin.type);
-            binMarkers.current.set(bin.id, m);
+        bins.forEach((bin) => {
+          if (!filterOk(bin.type)) return;
+          const selected = bin.id === selectedId;
+          const size = selected ? 46 : 34;
+          const html = pinHtml({ type: bin.type, size, selected });
+          const icon = L.divIcon({ className: '', html, iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.25] });
+          const m = L.marker([bin.lat, bin.lng], { icon, zIndexOffset: selected ? 1000 : 0 })
+            .on('click', () => onBinClick?.(bin));
+          markerTypeMap.current.set(m, bin.type);
+          binMarkers.current.set(bin.id, m);
+          if (selected) {
+            m.addTo(map); // fuera del clúster → siempre visible
+          } else {
             group.addLayer(m);
-          });
-        } else {
-          const shown = new Set<string>();
-          bins.forEach((bin) => {
-            if (!filterOk(bin.type)) return;
-            shown.add(bin.id);
-            const selected = bin.id === selectedId;
-            const size = selected ? 44 : 34;
-            const html = pinHtml({ type: bin.type, size, selected });
-            const icon = L.divIcon({ className: '', html, iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.25] });
-            const existing = binMarkers.current.get(bin.id);
-            if (existing) {
-              existing.setIcon(icon);
-            } else {
-              const m = L.marker([bin.lat, bin.lng], { icon })
-                .addTo(map)
-                .on('click', () => onBinClick?.(bin));
-              binMarkers.current.set(bin.id, m);
-            }
-          });
-          binMarkers.current.forEach((m, id) => {
-            if (!shown.has(id)) {
-              m.remove();
-              binMarkers.current.delete(id);
-            }
-          });
-        }
+          }
+        });
       });
     });
   }, [bins, selectedId, onBinClick, containerFilter, mapReady]);
@@ -381,6 +390,42 @@ export default function MapView({
       });
     });
   }, [truckRoutes, mapReady]);
+
+  // marcador "mi ubicación" — punto azul con halo
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    import('leaflet').then((L) => {
+      const map = mapRef.current!;
+      if (userLocMarker.current) { userLocMarker.current.remove(); userLocMarker.current = null; }
+      if (!userLocation) return;
+      const html = `<div style="position:relative;width:22px;height:22px">
+        <div style="position:absolute;inset:0;border-radius:50%;background:rgba(0,90,156,.25);animation:ecoPulse 2s ease-out infinite"></div>
+        <div style="position:absolute;top:5px;left:5px;width:12px;height:12px;border-radius:50%;background:#005A9C;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>
+      </div>`;
+      const icon = L.divIcon({ className: '', html, iconSize: [22, 22], iconAnchor: [11, 11] });
+      userLocMarker.current = L.marker([userLocation.lat, userLocation.lng], { icon, interactive: false, zIndexOffset: 500 }).addTo(map);
+    });
+  }, [userLocation, mapReady]);
+
+  // capa analítica: intensidad por zona (círculos de densidad)
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    import('leaflet').then((L) => {
+      const map = mapRef.current!;
+      zoneCirclesRef.current.forEach((c) => c.remove());
+      zoneCirclesRef.current = [];
+      zoneCircles.forEach((z) => {
+        const circle = L.circle([z.lat, z.lng], {
+          radius: z.radius,
+          color: z.color,
+          weight: 1.5,
+          fillColor: z.color,
+          fillOpacity: 0.32,
+        }).addTo(map);
+        zoneCirclesRef.current.push(circle);
+      });
+    });
+  }, [zoneCircles, mapReady]);
 
   return (
     <div

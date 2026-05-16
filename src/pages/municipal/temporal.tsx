@@ -5,46 +5,27 @@ import { Icon } from '@/components/ui/Icon';
 import { useReports } from '@/hooks/useReports';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { THEME } from '@/lib/theme';
-import { CONTAINERS } from '@/lib/constants';
+import { CONTAINERS, INCIDENTS } from '@/lib/constants';
+import { Report } from '@/types';
 
 const T = THEME;
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
-// ---------- Datos horarios ----------
-const ECO_HOURLY: Record<string, number[]> = {
-  organico: [0.10,0.08,0.06,0.06,0.08,0.12,0.22,0.35,0.48,0.55,0.62,0.70,0.78,0.85,0.82,0.74,0.62,0.55,0.66,0.78,0.86,0.82,0.62,0.32],
-  envases:  [0.18,0.16,0.12,0.10,0.10,0.14,0.22,0.30,0.42,0.55,0.68,0.72,0.85,0.90,0.86,0.74,0.62,0.58,0.72,0.82,0.92,0.88,0.72,0.44],
-  papel:    [0.08,0.06,0.05,0.05,0.06,0.10,0.18,0.32,0.48,0.62,0.74,0.78,0.82,0.78,0.68,0.55,0.45,0.42,0.48,0.58,0.65,0.62,0.45,0.22],
-  vidrio:   [0.20,0.18,0.16,0.15,0.14,0.14,0.18,0.24,0.32,0.40,0.46,0.52,0.58,0.62,0.60,0.55,0.50,0.55,0.68,0.82,0.94,0.92,0.78,0.46],
-  resto:    [0.15,0.12,0.10,0.10,0.12,0.18,0.28,0.42,0.55,0.66,0.75,0.82,0.86,0.88,0.84,0.78,0.72,0.74,0.85,0.92,0.92,0.84,0.65,0.40],
-  ropa:     [0.25,0.25,0.24,0.24,0.24,0.26,0.30,0.38,0.45,0.52,0.58,0.62,0.66,0.68,0.66,0.60,0.55,0.52,0.55,0.60,0.62,0.58,0.45,0.32],
-  aceite:   [0.22,0.22,0.22,0.22,0.22,0.24,0.26,0.30,0.35,0.40,0.42,0.48,0.52,0.56,0.55,0.50,0.45,0.42,0.48,0.55,0.60,0.55,0.42,0.28],
-  baterias: [0.30,0.30,0.30,0.30,0.30,0.32,0.34,0.36,0.40,0.44,0.46,0.48,0.50,0.52,0.52,0.50,0.48,0.46,0.48,0.50,0.52,0.50,0.42,0.34],
-};
+function fmt2(h: number): string {
+  return String(h).padStart(2, '0');
+}
 
-const TYPES = Object.keys(ECO_HOURLY);
-
-// Saturación media por hora (promedio de todos los tipos)
-const HOURLY_AVG: number[] = Array.from({ length: 24 }, (_, h) => {
-  const sum = TYPES.reduce((acc, t) => acc + ECO_HOURLY[t][h], 0);
-  return sum / TYPES.length;
-});
-
-function barColor(v: number): string {
-  if (v > 0.75) return T.danger;
-  if (v > 0.55) return T.warn;
-  if (v > 0.35) return T.primary;
+function ratioColor(ratio: number): string {
+  if (ratio > 0.75) return T.danger;
+  if (ratio > 0.5) return T.warn;
+  if (ratio > 0.25) return T.primary;
   return T.success;
 }
 
-function networkState(avg: number): { label: string; color: string } {
-  if (avg >= 0.75) return { label: 'CRÍTICO', color: T.danger };
-  if (avg >= 0.55) return { label: 'TENSO', color: T.warn };
+function loadState(ratio: number): { label: string; color: string } {
+  if (ratio >= 0.75) return { label: 'PICO', color: T.danger };
+  if (ratio >= 0.4) return { label: 'ACTIVO', color: T.warn };
   return { label: 'TRANQUILO', color: T.success };
-}
-
-function fmt2(h: number): string {
-  return String(h).padStart(2, '0');
 }
 
 // ---------- Componente principal ----------
@@ -53,25 +34,34 @@ export default function MunicipalTemporal() {
   const isMobile = useIsMobile();
   const [filters, setFilters] = useState<MuniFilters>(EMPTY_FILTERS);
   const [hour, setHour] = useState<number>(new Date().getHours());
-  const [day, setDay] = useState<'Lab' | 'Sab' | 'Dom'>('Lab');
   const [layer, setLayer] = useState<'heatmap' | 'pines'>('heatmap');
 
   const filtered = useMemo(() => applyFilters(reports, filters), [reports, filters]);
 
-  const currentAvg = HOURLY_AVG[hour];
-  const net = networkState(currentAvg);
+  // Conteo REAL de incidencias por hora del día (a partir de createdAt).
+  const hourCounts = useMemo(() => {
+    const c = new Array(24).fill(0);
+    filtered.forEach((r) => { c[new Date(r.createdAt).getHours()] += 1; });
+    return c;
+  }, [filtered]);
+  const maxHour = Math.max(1, ...hourCounts);
 
-  // Tipo de contenedores ordenados por saturación desc en la hora activa
+  const reportsInHour = useMemo(
+    () => filtered.filter((r) => new Date(r.createdAt).getHours() === hour),
+    [filtered, hour],
+  );
+
+  const currentCount = hourCounts[hour];
+  const net = loadState(currentCount / maxHour);
+
+  // Tipos de contenedor con más incidencias en la hora seleccionada.
   const typesRanked = useMemo(() => {
-    return TYPES.map((t) => ({
-      key: t,
-      value: ECO_HOURLY[t][hour],
-      meta: CONTAINERS.find((c) => c.type === t),
-    })).sort((a, b) => b.value - a.value);
-  }, [hour]);
-
-  // Nº de tipos con saturación alta (>55%)
-  const tensionedCount = typesRanked.filter((t) => t.value > 0.55).length;
+    const counts: Record<string, number> = {};
+    reportsInHour.forEach((r) => { counts[r.containerType] = (counts[r.containerType] ?? 0) + 1; });
+    return CONTAINERS
+      .map((c) => ({ key: c.type, value: counts[c.type] ?? 0, meta: c }))
+      .sort((a, b) => b.value - a.value);
+  }, [reportsInHour]);
 
   return (
     <MunicipalShell
@@ -86,7 +76,7 @@ export default function MunicipalTemporal() {
         {/* ===== MAPA ===== */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0 }}>
           <MapView
-            reports={filtered}
+            reports={reportsInHour}
             bins={[]}
             showHeatmap={layer === 'heatmap'}
             variant="voyager"
@@ -95,20 +85,17 @@ export default function MunicipalTemporal() {
           {/* CABECERA FLOTANTE */}
           <div style={{
             position: 'absolute', top: 16, left: 16, right: 16, zIndex: 500,
-            display: 'flex', gap: 12, alignItems: 'flex-start',
+            display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap',
           }}>
-            {/* Tarjeta franja horaria */}
             <div style={{
               background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10,
               padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
               boxShadow: '0 2px 8px rgba(0,0,0,.08)', flex: '0 0 auto',
             }}>
-              <div style={{ color: T.primary }}>
-                <Icon name="clock" size={20} color={T.primary} />
-              </div>
+              <Icon name="clock" size={20} color={T.primary} />
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Franja horaria · {day === 'Lab' ? 'Lunes-Viernes' : day === 'Sab' ? 'Sábado' : 'Domingo'}
+                  Franja horaria
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: T.ink, lineHeight: 1.1 }}>
                   {fmt2(hour)}:00 – {fmt2((hour + 1) % 24)}:00
@@ -116,44 +103,22 @@ export default function MunicipalTemporal() {
               </div>
             </div>
 
-            {/* Tarjeta estado red */}
             <div style={{
               background: net.color + '18', border: `1.5px solid ${net.color}`,
               borderRadius: 10, padding: '10px 14px', flex: '0 0 auto',
               boxShadow: '0 2px 8px rgba(0,0,0,.08)',
             }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: net.color, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Estado red
+                Actividad
               </div>
               <div style={{ fontSize: 18, fontWeight: 800, color: net.color }}>{net.label}</div>
               <div style={{ fontSize: 11, color: net.color, fontWeight: 600 }}>
-                {Math.round(currentAvg * 100)}% · {tensionedCount} tipos tensionados
+                {currentCount} incidencia{currentCount !== 1 ? 's' : ''} reportada{currentCount !== 1 ? 's' : ''}
               </div>
             </div>
 
             <div style={{ flex: 1 }} />
 
-            {/* Toggle días */}
-            <div style={{
-              display: 'flex', background: '#fff', border: `1px solid ${T.border}`,
-              borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,.08)',
-            }}>
-              {(['Lab', 'Sab', 'Dom'] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDay(d)}
-                  style={{
-                    padding: '7px 14px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                    background: day === d ? T.primary : 'transparent',
-                    color: day === d ? '#fff' : T.ink,
-                  }}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-
-            {/* Toggle capa */}
             <div style={{
               display: 'flex', background: '#fff', border: `1px solid ${T.border}`,
               borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,.08)',
@@ -165,7 +130,7 @@ export default function MunicipalTemporal() {
                   style={{
                     padding: '7px 14px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                     background: layer === l ? T.primary : 'transparent',
-                    color: layer === l ? '#fff' : T.ink,
+                    color: layer === l ? '#fff' : T.ink, fontFamily: 'inherit',
                   }}
                 >
                   {l === 'heatmap' ? 'Heatmap' : 'Pines'}
@@ -180,22 +145,25 @@ export default function MunicipalTemporal() {
             background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12,
             padding: '12px 14px', boxShadow: '0 2px 12px rgba(0,0,0,.10)',
           }}>
-            {/* Barras clicables */}
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+              Incidencias reportadas por hora del día
+            </div>
             <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height: 44, marginBottom: 6 }}>
-              {HOURLY_AVG.map((v, h) => {
+              {hourCounts.map((v, h) => {
                 const isActive = h === hour;
-                const color = barColor(v);
-                const heightPct = Math.max(12, Math.round(v * 100));
+                const ratio = v / maxHour;
+                const color = ratioColor(ratio);
+                const heightPct = Math.max(8, Math.round(ratio * 100));
                 return (
                   <button
                     key={h}
                     onClick={() => setHour(h)}
-                    title={`${fmt2(h)}:00 — ${Math.round(v * 100)}%`}
+                    title={`${fmt2(h)}:00 — ${v} incidencia${v !== 1 ? 's' : ''}`}
                     style={{
                       flex: 1, height: `${heightPct}%`, borderRadius: 3, border: 'none',
-                      cursor: 'pointer', background: color,
-                      opacity: isActive ? 1 : 0.38,
-                      outline: isActive ? `2px solid ${color}` : 'none',
+                      cursor: 'pointer', background: v === 0 ? T.borderSoft : color,
+                      opacity: isActive ? 1 : 0.4,
+                      outline: isActive ? `2px solid ${v === 0 ? T.inkLight : color}` : 'none',
                       outlineOffset: 1,
                       transition: 'opacity .15s',
                     }}
@@ -203,43 +171,26 @@ export default function MunicipalTemporal() {
                 );
               })}
             </div>
-
-            {/* Slider */}
             <input
-              type="range"
-              min={0}
-              max={23}
-              value={hour}
+              type="range" min={0} max={23} value={hour}
               onChange={(e) => setHour(Number(e.target.value))}
               style={{ width: '100%', accentColor: T.primary, margin: '4px 0' }}
             />
-
-            {/* Leyenda */}
-            <div style={{ display: 'flex', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
-              {[
-                { color: T.success, label: '<35%' },
-                { color: T.primary, label: '35-55%' },
-                { color: T.warn,    label: '55-75%' },
-                { color: T.danger,  label: '>75%' },
-              ].map((item) => (
-                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: T.inkMid }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 2, background: item.color, display: 'inline-block' }} />
-                  {item.label}
-                </div>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.inkMid }}>
+              <span>00:00</span><span>12:00</span><span>23:00</span>
             </div>
           </div>
         </div>
 
         {/* ===== PANEL DERECHO — escritorio ===== */}
         {!isMobile && (
-          <RightPanel hour={hour} typesRanked={typesRanked} />
+          <RightPanel hour={hour} typesRanked={typesRanked} reportsInHour={reportsInHour} hourCounts={hourCounts} filtered={filtered} />
         )}
       </div>
 
-      {/* RECOMENDACIONES — overlay móvil (bottom-sheet) */}
+      {/* ANÁLISIS — overlay móvil */}
       {isMobile && (
-        <MobileSheet hour={hour} />
+        <MobileSheet hour={hour} hourCounts={hourCounts} filtered={filtered} />
       )}
     </MunicipalShell>
   );
@@ -249,111 +200,112 @@ export default function MunicipalTemporal() {
 interface RankedType {
   key: string;
   value: number;
-  meta: { type: string; label: string; color: string; icon: string } | undefined;
+  meta: { type: string; label: string; color: string; icon: string };
 }
 
-function RightPanel({ hour, typesRanked }: { hour: number; typesRanked: RankedType[] }) {
+function RightPanel({
+  hour, typesRanked, reportsInHour, hourCounts, filtered,
+}: {
+  hour: number; typesRanked: RankedType[]; reportsInHour: Report[]; hourCounts: number[]; filtered: Report[];
+}) {
+  const maxVal = Math.max(1, ...typesRanked.map((t) => t.value));
   return (
     <div style={{
       width: 360, flex: '0 0 360px', background: '#fff',
       borderLeft: `1px solid ${THEME.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       <div className="thin-scroll" style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-        {/* Título */}
         <div style={{ fontSize: 14, fontWeight: 700, color: THEME.ink, marginBottom: 14 }}>
-          Tensión por tipo · {fmt2(hour)}:00
+          Incidencias por tipo · {fmt2(hour)}:00
         </div>
 
-        {/* Lista ordenada */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-          {typesRanked.map(({ key, value, meta }) => {
-            const label = meta?.label ?? key;
-            const color = meta?.color ?? THEME.primary;
-            const pct = Math.round(value * 100);
-            return (
+        {reportsInHour.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: THEME.inkMid, marginBottom: 24 }}>
+            No se reportaron incidencias en esta franja.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+            {typesRanked.filter((t) => t.value > 0).map(({ key, value, meta }) => (
               <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 999, background: color, flex: '0 0 8px' }} />
-                <span style={{ flex: 1, fontSize: 12.5, color: THEME.ink, fontWeight: 500 }}>{label}</span>
-                {/* Barra de progreso */}
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: meta.color, flex: '0 0 8px' }} />
+                <span style={{ flex: 1, fontSize: 12.5, color: THEME.ink, fontWeight: 500 }}>{meta.label}</span>
                 <div style={{ width: 80, height: 6, background: THEME.borderSoft, borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${pct}%`, height: '100%', borderRadius: 3,
-                    background: barColor(value),
-                  }} />
+                  <div style={{ width: `${(value / maxVal) * 100}%`, height: '100%', borderRadius: 3, background: meta.color }} />
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: barColor(value), width: 32, textAlign: 'right' }}>
-                  {pct}%
-                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: THEME.ink, width: 22, textAlign: 'right' }}>{value}</span>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
 
-        <Recommendations />
+        <Insights hourCounts={hourCounts} filtered={filtered} />
       </div>
     </div>
   );
 }
 
-// ---------- Recomendaciones ----------
-function Recommendations() {
-  const T = THEME;
+// ---------- Recomendaciones derivadas de datos reales ----------
+function Insights({ hourCounts, filtered }: { hourCounts: number[]; filtered: Report[] }) {
+  const total = filtered.length;
+  const busiest = hourCounts.indexOf(Math.max(...hourCounts));
+  const busiestN = hourCounts[busiest];
+
+  // Incidencia más frecuente
+  const incCounts: Record<string, number> = {};
+  filtered.forEach((r) => { incCounts[r.incidentType] = (incCounts[r.incidentType] ?? 0) + 1; });
+  const topInc = Object.entries(incCounts).sort((a, b) => b[1] - a[1])[0];
+  const topIncMeta = topInc ? INCIDENTS.find((i) => i.type === topInc[0]) : undefined;
+
+  // Mañana vs tarde
+  const morning = hourCounts.slice(6, 14).reduce((a, b) => a + b, 0);
+  const evening = hourCounts.slice(14, 22).reduce((a, b) => a + b, 0);
+
   return (
     <>
       <div style={{ fontSize: 12, fontWeight: 700, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-        Recomendaciones operativas
+        Hallazgos · datos reales
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Naranja — pico crítico */}
-        <div style={{
-          background: T.warn + '18', border: `1px solid ${T.warn}`,
-          borderRadius: 8, padding: '10px 12px',
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: T.warn, marginBottom: 3 }}>
-            Pico crítico de vidrio a las 20:00
-          </div>
-          <div style={{ fontSize: 11, color: T.ink, lineHeight: 1.5 }}>
-            Saturación estimada 94%. Programar recogida adicional antes de las 19:30 en zona Centro y Puerto.
-          </div>
+      {total === 0 ? (
+        <div style={{ fontSize: 12, color: T.inkMid }}>Sin incidencias registradas con estos filtros.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <InsightCard
+            color={T.warn}
+            title={`Franja con más reportes: ${fmt2(busiest)}:00`}
+            body={`Se concentran ${busiestN} de las ${total} incidencias. Conviene reforzar la atención a partir de esa hora.`}
+          />
+          {topIncMeta && (
+            <InsightCard
+              color={T.primary}
+              title={`Incidencia más frecuente: ${topIncMeta.label}`}
+              body={`Representa ${topInc![1]} de ${total} reportes (${Math.round((topInc![1] / total) * 100)}%).`}
+            />
+          )}
+          <InsightCard
+            color={morning >= evening ? T.success : T.danger}
+            title={morning >= evening ? 'La mañana acumula más reportes' : 'La tarde acumula más reportes'}
+            body={`Mañana (06–14h): ${morning} · Tarde (14–22h): ${evening}. Planifica las recogidas hacia el tramo con mayor carga.`}
+          />
         </div>
-
-        {/* Verde — ventana óptima */}
-        <div style={{
-          background: T.success + '18', border: `1px solid ${T.success}`,
-          borderRadius: 8, padding: '10px 12px',
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: T.success, marginBottom: 3 }}>
-            Ventana óptima de mantenimiento 03:00–06:00
-          </div>
-          <div style={{ fontSize: 11, color: T.ink, lineHeight: 1.5 }}>
-            Saturación &lt;15% en todos los tipos. Ideal para revisión y limpieza de contenedores.
-          </div>
-        </div>
-
-        {/* Azul — ruta sugerida */}
-        <div style={{
-          background: T.primaryMist, border: `1px solid ${T.primaryTint}`,
-          borderRadius: 8, padding: '10px 12px',
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: T.primary, marginBottom: 3 }}>
-            Ruta sugerida para franja actual
-          </div>
-          <div style={{ fontSize: 11, color: T.ink, lineHeight: 1.5 }}>
-            12 paradas en Centro + Anaga · Duración estimada 1h 40min · Prioridad: envases y resto.
-          </div>
-        </div>
-      </div>
+      )}
     </>
   );
 }
 
+function InsightCard({ color, title, body }: { color: string; title: string; body: string }) {
+  return (
+    <div style={{ background: color + '18', border: `1px solid ${color}`, borderRadius: 8, padding: '10px 12px' }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color, marginBottom: 3 }}>{title}</div>
+      <div style={{ fontSize: 11, color: T.ink, lineHeight: 1.5 }}>{body}</div>
+    </div>
+  );
+}
+
 // ---------- Bottom-sheet móvil ----------
-function MobileSheet({ hour }: { hour: number }) {
-  const T = THEME;
+function MobileSheet({ hour, hourCounts, filtered }: { hour: number; hourCounts: number[]; filtered: Report[] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      {/* Botón flotante */}
       <button
         onClick={() => setOpen(true)}
         style={{
@@ -361,14 +313,13 @@ function MobileSheet({ hour }: { hour: number }) {
           background: T.primary, color: '#fff', border: 'none', borderRadius: 24,
           padding: '10px 18px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
           boxShadow: '0 4px 16px rgba(0,90,156,.4)',
-          display: 'flex', alignItems: 'center', gap: 8,
+          display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit',
         }}
       >
         <Icon name="clock" size={15} color="#fff" />
         {fmt2(hour)}:00 · Ver análisis
       </button>
 
-      {/* Overlay / bottom-sheet */}
       {open && (
         <div
           onClick={() => setOpen(false)}
@@ -381,14 +332,11 @@ function MobileSheet({ hour }: { hour: number }) {
               borderRadius: '16px 16px 0 0', overflow: 'hidden', display: 'flex', flexDirection: 'column',
             }}
           >
-            {/* Handle */}
             <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: T.border }} />
             </div>
             <div style={{ padding: '10px 20px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
-                Análisis · {fmt2(hour)}:00
-              </span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>Análisis temporal</span>
               <button
                 onClick={() => setOpen(false)}
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.inkMid, padding: 4 }}
@@ -397,7 +345,7 @@ function MobileSheet({ hour }: { hour: number }) {
               </button>
             </div>
             <div className="thin-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 20px 24px' }}>
-              <Recommendations />
+              <Insights hourCounts={hourCounts} filtered={filtered} />
             </div>
           </div>
         </div>

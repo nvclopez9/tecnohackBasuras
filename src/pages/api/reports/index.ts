@@ -21,6 +21,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       priority: str(q.priority),
       area: str(q.area),
       userId: str(q.userId),
+      binId: str(q.binId),
       ids: typeof q.ids === 'string' ? q.ids.split(',').filter(Boolean) : undefined,
     });
     return res.status(200).json(reports);
@@ -28,9 +29,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (req.method === 'POST') {
     const b = req.body ?? {};
+    // La foto es opcional: los reportes desde una burbuja del mapa no llevan foto.
+    const photo = typeof b.photo === 'string' ? b.photo : '';
+    const thumbnail = typeof b.thumbnail === 'string' ? b.thumbnail : '';
     if (
-      typeof b.photo !== 'string' ||
-      typeof b.thumbnail !== 'string' ||
       typeof b.lat !== 'number' ||
       typeof b.lng !== 'number' ||
       !CONTAINER_TYPES.includes(b.containerType) ||
@@ -54,8 +56,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const report = insertReport({
       userId: DEFAULT_USER_ID,
       binId,
-      photo: b.photo,
-      thumbnail: b.thumbnail,
+      photo,
+      thumbnail,
       lat: b.lat,
       lng: b.lng,
       address,

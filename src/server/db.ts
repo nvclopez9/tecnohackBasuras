@@ -250,6 +250,7 @@ export interface ReportFilters {
   priority?: string;
   area?: string;
   userId?: string;
+  binId?: string;
   ids?: string[];
 }
 
@@ -267,6 +268,7 @@ export function listReports(filters: ReportFilters = {}): Report[] {
   addEq('priority', filters.priority);
   addEq('area', filters.area);
   addEq('user_id', filters.userId);
+  addEq('bin_id', filters.binId);
 
   if (filters.ids) {
     if (filters.ids.length === 0) return [];

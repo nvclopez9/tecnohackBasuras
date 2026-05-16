@@ -9,57 +9,114 @@ import { Icon } from '@/components/ui/Icon';
 import { THEME } from '@/lib/theme';
 import { CONTAINERS, INCIDENTS, containerMeta, priorityMeta } from '@/lib/constants';
 import { priorityFor } from '@/lib/priority';
-import { compressImage, getGeolocation, Capture } from '@/lib/capture';
-import { GeoResult } from '@/lib/capture';
+import { compressImage, getGeolocation, Capture, GeoResult } from '@/lib/capture';
 import { useReports } from '@/hooks/useReports';
-import { ContainerType, IncidentType } from '@/types';
+import { Bin, ContainerType, IncidentType } from '@/types';
 
 const { useUploadThing } = generateReactHelpers<OurFileRouter>({ url: '/api/uploadthing' });
 const T = THEME;
 
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+interface NearbyBin { bin: Bin; distM: number; }
+
 export default function ReportarPage() {
   const router = useRouter();
   const { addReport } = useReports();
   const cameraRef = useRef<HTMLInputElement>(null);
 
+  const [booting, setBooting] = useState(true);
+  const [fromBubble, setFromBubble] = useState(false);
   const [step, setStep] = useState<'capture' | 'form'>('capture');
   const [busy, setBusy] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [geoNotice, setGeoNotice] = useState<string | null>(null);
+
   const [capture, setCapture] = useState<Capture | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [binId, setBinId] = useState<string | null>(null);
+
   const [container, setContainer] = useState<ContainerType>('envases');
   const [incident, setIncident] = useState<IncidentType>('lleno');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
+  const [nearby, setNearby] = useState<NearbyBin[]>([]);
+  const [manualType, setManualType] = useState(false);
+
   const { startUpload, isUploading } = useUploadThing('image');
 
-  // Prefill desde una papelera del mapa
-  useEffect(() => {
-    const ct = router.query.containerType;
-    if (typeof ct === 'string' && CONTAINERS.some((c) => c.type === ct)) {
-      setContainer(ct as ContainerType);
-    }
-  }, [router.query.containerType]);
-
-  const binId = typeof router.query.binId === 'string' ? router.query.binId : undefined;
   const priority = priorityFor(incident);
   const pm = priorityMeta(priority);
+
+  // Arranque: ¿viene de una burbuja del mapa (binId) o de la pestaña Reportar?
+  useEffect(() => {
+    if (!router.isReady) return;
+    const qBin = typeof router.query.binId === 'string' ? router.query.binId : '';
+    const qType = router.query.containerType;
+    if (typeof qType === 'string' && CONTAINERS.some((c) => c.type === qType)) {
+      setContainer(qType as ContainerType);
+    }
+    if (qBin) {
+      // Reporte desde burbuja → sin foto, va directo al formulario.
+      setFromBubble(true);
+      setBinId(qBin);
+      fetch(`/api/bins/${qBin}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((bin: Bin | null) => {
+          if (bin) {
+            setCoords({ lat: bin.lat, lng: bin.lng });
+            setContainer(bin.type);
+          }
+          setStep('form');
+          setBooting(false);
+        })
+        .catch(() => { setStep('form'); setBooting(false); });
+    } else {
+      setStep('capture');
+      setBooting(false);
+    }
+  }, [router.isReady, router.query.binId, router.query.containerType]);
+
+  // Contenedores cercanos por GPS (solo flujo cámara, sin binId de burbuja)
+  useEffect(() => {
+    if (fromBubble || !coords || step !== 'form') return;
+    const d = 0.0045;
+    const bbox = `${coords.lat - d},${coords.lng - d},${coords.lat + d},${coords.lng + d}`;
+    fetch(`/api/bins?bbox=${bbox}&limit=200`)
+      .then((r) => r.json())
+      .then((bins: Bin[]) => {
+        const ranked = bins
+          .map((bin) => ({ bin, distM: Math.round(haversineM(coords.lat, coords.lng, bin.lat, bin.lng)) }))
+          .sort((a, b) => a.distM - b.distM)
+          .slice(0, 5);
+        setNearby(ranked);
+        if (ranked.length > 0 && !binId) {
+          setBinId(ranked[0].bin.id);
+          setContainer(ranked[0].bin.type);
+        } else if (ranked.length === 0) {
+          setManualType(true);
+        }
+      })
+      .catch(() => setManualType(true));
+  }, [coords, fromBubble, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const geoMessage = useCallback((geo: GeoResult): string | null => {
     if (geo.precise) return null;
     switch (geo.fallbackReason) {
-      case 'denied':
-        return 'Ubicación desactivada: se usará el centro de Santa Cruz. Puedes ajustar el punto en el mapa.';
-      case 'timeout':
-        return 'No se pudo obtener tu ubicación a tiempo: se usará el centro de Santa Cruz.';
-      case 'unsupported':
-        return 'Este dispositivo no permite geolocalización: se usará el centro de Santa Cruz.';
-      default:
-        return 'No se pudo determinar tu ubicación: se usará el centro de Santa Cruz.';
+      case 'denied': return 'Ubicación desactivada: se usará el centro de Santa Cruz. Ajusta el punto si hace falta.';
+      case 'timeout': return 'No se pudo obtener tu ubicación a tiempo: se usará el centro de Santa Cruz.';
+      case 'unsupported': return 'Este dispositivo no permite geolocalización: se usará el centro de Santa Cruz.';
+      default: return 'No se pudo determinar tu ubicación: se usará el centro de Santa Cruz.';
     }
   }, []);
 
@@ -73,34 +130,39 @@ export default function ReportarPage() {
     try {
       const [{ full, thumb }, geo] = await Promise.all([compressImage(file), getGeolocation()]);
       setCapture({ photo: full, thumbnail: thumb, lat: geo.lat, lng: geo.lng });
+      setCoords({ lat: geo.lat, lng: geo.lng });
       setGeoNotice(geoMessage(geo));
       setStep('form');
     } catch (err) {
-      setCaptureError(
-        err instanceof Error ? err.message : 'No se pudo procesar la foto. Inténtalo de nuevo.'
-      );
+      setCaptureError(err instanceof Error ? err.message : 'No se pudo procesar la foto. Inténtalo de nuevo.');
     } finally {
       setBusy(false);
     }
   }, [geoMessage]);
 
   const submit = useCallback(async () => {
-    if (!capture || !uploadFile) return;
+    if (!coords) return;
     setSubmitting(true);
     try {
-      const uploadResult = await startUpload([uploadFile]);
-      if (!uploadResult || uploadResult.length === 0 || !uploadResult[0]?.url) {
-        throw new Error('No se pudo subir la imagen');
+      let photoUrl = '';
+      let thumb = '';
+      if (capture && uploadFile) {
+        const uploadResult = await startUpload([uploadFile]);
+        if (!uploadResult || uploadResult.length === 0 || !uploadResult[0]?.url) {
+          throw new Error('No se pudo subir la imagen');
+        }
+        photoUrl = uploadResult[0].url;
+        thumb = capture.thumbnail;
       }
       await addReport({
-        photo: uploadResult[0].url,
-        thumbnail: capture.thumbnail,
-        lat: capture.lat,
-        lng: capture.lng,
+        photo: photoUrl,
+        thumbnail: thumb,
+        lat: coords.lat,
+        lng: coords.lng,
         containerType: container,
         incidentType: incident,
         description: note,
-        binId,
+        binId: binId ?? undefined,
       });
       router.push('/ciudadano/incidencias');
     } catch (err) {
@@ -108,13 +170,28 @@ export default function ReportarPage() {
       alert('No se pudo enviar la incidencia. Inténtalo de nuevo.');
       setSubmitting(false);
     }
-  }, [capture, container, incident, note, binId, addReport, router, startUpload, uploadFile]);
+  }, [coords, capture, uploadFile, container, incident, note, binId, addReport, router, startUpload]);
 
-  // ----- STEP: CAPTURE -----
+  const selectNearby = (n: NearbyBin) => {
+    setBinId(n.bin.id);
+    setContainer(n.bin.type);
+    setManualType(false);
+  };
+
+  if (booting) {
+    return (
+      <CitizenLayout title="EcoChicharro · Reportar">
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.inkMid, fontSize: 13 }}>
+          Cargando…
+        </div>
+      </CitizenLayout>
+    );
+  }
+
+  // ----- STEP: CAPTURE (solo flujo "Reportar" con cámara) -----
   if (step === 'capture') {
     return (
       <CitizenLayout title="EcoChicharro · Reportar">
-        {/* Cámara trasera (móvil). 'capture' es una pista; degrada a galería si no hay cámara. */}
         <input
           ref={cameraRef}
           type="file"
@@ -196,7 +273,7 @@ export default function ReportarPage() {
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <button
-          onClick={() => setStep('capture')}
+          onClick={() => (fromBubble ? router.back() : setStep('capture'))}
           style={{ background: 'transparent', border: 'none', padding: 6, color: T.ink, cursor: 'pointer' }}
           aria-label="Volver"
         >
@@ -206,60 +283,129 @@ export default function ReportarPage() {
           <div style={{ fontSize: 15.5, fontWeight: 700, color: T.ink }}>Nuevo reporte</div>
           <div style={{ fontSize: 11, color: T.inkMid }}>Detalles de la incidencia</div>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <span style={{ width: 24, height: 4, borderRadius: 2, background: T.primary }} />
-          <span style={{ width: 24, height: 4, borderRadius: 2, background: T.primary }} />
-        </div>
       </div>
 
       {/* Body */}
       <div className="thin-scroll" style={{ position: 'absolute', inset: '64px 0 76px 0', overflowY: 'auto', padding: 16 }}>
-        {/* Photo preview */}
-        <div style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${T.border}`, position: 'relative' }}>
-          {capture && (
+        {/* Photo preview (solo flujo cámara) */}
+        {capture ? (
+          <div style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${T.border}`, position: 'relative' }}>
             <img src={capture.photo} alt="Foto capturada" style={{ width: '100%', height: 150, objectFit: 'cover', display: 'block' }} />
-          )}
-          <button
-            onClick={() => setStep('capture')}
-            style={{
-              position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.5)', color: '#fff',
-              border: 'none', padding: '5px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
-            }}
-          >
-            Volver a tomar
-          </button>
-        </div>
-
-        {/* Container type */}
-        <div style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Tipo de contenedor</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
-            {CONTAINERS.map((c) => {
-              const active = container === c.type;
-              return (
-                <button
-                  key={c.type}
-                  onClick={() => setContainer(c.type)}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                    padding: '10px 4px', borderRadius: 10,
-                    background: active ? T.primaryTint : '#fff',
-                    border: `1px solid ${active ? T.primary : T.border}`,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span style={{
-                    width: 28, height: 28, borderRadius: 999, background: c.color + '22', color: c.color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Icon name={(c.icon as never)} size={16} />
-                  </span>
-                  <span style={{ fontSize: 10.5, fontWeight: 600, color: T.ink, textAlign: 'center' }}>{c.label}</span>
-                </button>
-              );
-            })}
+            <button
+              onClick={() => setStep('capture')}
+              style={{
+                position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.5)', color: '#fff',
+                border: 'none', padding: '5px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              Volver a tomar
+            </button>
           </div>
-        </div>
+        ) : (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px',
+            background: T.primaryMist, border: `1px solid ${T.border}`, borderRadius: 10,
+          }}>
+            <Icon name="pin" size={18} color={T.primary} />
+            <div style={{ fontSize: 12.5, color: T.ink, lineHeight: 1.4 }}>
+              Reporte rápido sobre el contenedor seleccionado. No hace falta foto.
+            </div>
+          </div>
+        )}
+
+        {/* Contenedores cercanos (flujo cámara) */}
+        {!fromBubble && nearby.length > 0 && !manualType && (
+          <div style={{ marginTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.ink, flex: 1 }}>Contenedor más cercano</span>
+              <button
+                onClick={() => { setManualType(true); setBinId(null); }}
+                style={{ background: 'transparent', border: 'none', color: T.primary, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+              >
+                No aparece
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {nearby.map((n) => {
+                const active = binId === n.bin.id;
+                const meta = containerMeta(n.bin.type);
+                return (
+                  <button
+                    key={n.bin.id}
+                    onClick={() => selectNearby(n)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10,
+                      background: active ? T.primaryTint : '#fff',
+                      border: `1px solid ${active ? T.primary : T.border}`,
+                      cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                    }}
+                  >
+                    <span style={{
+                      width: 30, height: 30, borderRadius: 999, background: meta.color + '22', color: meta.color,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 30px',
+                    }}>
+                      <Icon name={meta.icon as Parameters<typeof Icon>[0]['name']} size={16} />
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{meta.label}</div>
+                      <div style={{ fontSize: 11, color: T.inkMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.bin.address}</div>
+                    </div>
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: active ? T.primary : T.inkMid, flex: '0 0 auto' }}>
+                      {n.distM} m
+                    </span>
+                    {active && <Icon name="check" size={16} color={T.primary} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Container type — manual (burbuja: solo lectura; cámara sin cercanos: rejilla) */}
+        {(fromBubble || manualType || nearby.length === 0) && (
+          <div style={{ marginTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.ink, flex: 1 }}>Tipo de contenedor</span>
+              {!fromBubble && manualType && nearby.length > 0 && (
+                <button
+                  onClick={() => { setManualType(false); selectNearby(nearby[0]); }}
+                  style={{ background: 'transparent', border: 'none', color: T.primary, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+                >
+                  Ver cercanos
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
+              {CONTAINERS.map((c) => {
+                const active = container === c.type;
+                return (
+                  <button
+                    key={c.type}
+                    disabled={fromBubble}
+                    onClick={() => { setContainer(c.type); if (!fromBubble) setBinId(null); }}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      padding: '10px 4px', borderRadius: 10,
+                      background: active ? T.primaryTint : '#fff',
+                      border: `1px solid ${active ? T.primary : T.border}`,
+                      cursor: fromBubble ? 'default' : 'pointer',
+                      opacity: fromBubble && !active ? 0.5 : 1,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <span style={{
+                      width: 28, height: 28, borderRadius: 999, background: c.color + '22', color: c.color,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Icon name={(c.icon as never)} size={16} />
+                    </span>
+                    <span style={{ fontSize: 10.5, fontWeight: 600, color: T.ink, textAlign: 'center' }}>{c.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Incident type */}
         <div style={{ marginTop: 18 }}>
@@ -298,15 +444,15 @@ export default function ReportarPage() {
         <div style={{ marginTop: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Ubicación</div>
           <div style={{ height: 120, borderRadius: 10, overflow: 'hidden', border: `1px solid ${T.border}` }}>
-            {capture && (
+            {coords && (
               <MapView
-                bins={[{ id: 'capture', type: container, lat: capture.lat, lng: capture.lng, address: '', area: '' }]}
+                bins={[{ id: 'capture', type: container, lat: coords.lat, lng: coords.lng, address: '', area: '' }]}
               />
             )}
           </div>
           <div style={{ marginTop: 6, fontSize: 12, color: T.inkMid, display: 'flex', alignItems: 'center', gap: 4 }}>
             <Icon name="pin" size={12} />
-            {capture ? `${capture.lat.toFixed(5)}, ${capture.lng.toFixed(5)}` : ''}
+            {coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : ''}
           </div>
           {geoNotice && (
             <div style={{
@@ -358,7 +504,7 @@ export default function ReportarPage() {
         background: '#fff', borderTop: `1px solid ${T.border}`, zIndex: 5,
       }}>
         <Button kind="primary" size="lg" full disabled={submitting || isUploading} onClick={submit}>
-          {submitting || isUploading ? 'Subiendo imagen…' : 'Enviar incidencia'}
+          {submitting || isUploading ? 'Enviando…' : 'Enviar incidencia'}
         </Button>
       </div>
     </CitizenLayout>

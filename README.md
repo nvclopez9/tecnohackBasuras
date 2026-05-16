@@ -24,10 +24,12 @@ Diseño *mobile-first* con barra de navegación inferior de 4 pestañas.
 
 | Pantalla | Ruta | Función |
 |---|---|---|
-| Home | `/ciudadano` | Mapa de papeleras/contenedores cercanos, con pines por tipo y filtros |
-| Reportar | `/ciudadano/reportar` | Capturar foto, detectar GPS y enviar una incidencia |
+| Home | `/ciudadano` | Mapa con ~12.000 contenedores reales (clustering de marcadores), filtros por tipo, buscador de calles, "mi ubicación", selector de estilo de mapa y planificador de rutas a pie |
+| Reportar | `/ciudadano/reportar` | Capturar foto opcional, detectar GPS y contenedores cercanos, y enviar una incidencia |
 | Mis incidencias | `/ciudadano/incidencias` | Lista de reportes propios, con estado, edición y borrado |
+| Ranking | `/ciudadano/ranking` | Clasificación de ciudadanos y barrios por puntos |
 | Cuenta | `/ciudadano/cuenta` | Perfil y estadísticas personales (enviadas / resueltas) |
+| Acceso | `/ciudadano/login`, `/ciudadano/register` | Inicio de sesión y registro simulados (PMV, sin auth real) |
 
 ### Panel Municipal (escritorio, responsive)
 
@@ -35,8 +37,9 @@ Diseño *web-first* de alta densidad, tipo visor de datos institucional.
 
 | Vista | Ruta | Función |
 |---|---|---|
-| Cuadro de mandos | `/municipal` | KPIs y gráficos (por estado, tipo, evolución, zonas) |
-| Mapa analítico | `/municipal/mapa` | Mapa con pines, **heatmap de puntos calientes** y capas |
+| Cuadro de mandos | `/municipal` | KPIs y gráficos Recharts (por estado, tipo, contenedor, zonas) sobre datos reales |
+| Mapa analítico | `/municipal/mapa` | Mapa con capas: pines, **mapa de calor**, intensidad por zona y rutas de camiones |
+| Análisis temporal | `/municipal/temporal` | Distribución de incidencias por hora del día |
 | Lista / gestión | `/municipal/lista` | Tabla filtrable; cambio de estado, asignación y comentarios |
 
 ---
@@ -131,7 +134,26 @@ Personal municipal ──gestiona estado/asignación/comentarios──┘
 
 ---
 
-## 7. Cómo arrancar
+## 7. Endpoints de la API
+
+Todos viven en `src/pages/api/` y hablan con SQLite vía `src/server/db.ts`.
+
+| Endpoint | Métodos | Función |
+|---|---|---|
+| `/api/reports` | `GET`, `POST` | Listar reportes (con filtros) / crear uno nuevo |
+| `/api/reports/:id` | `GET`, `PUT`, `PATCH`, `DELETE` | Detalle; `PUT` edición ciudadana, `PATCH` gestión municipal, borrado |
+| `/api/reports/:id/comments` | `GET`, `POST` | Comentarios de un reporte |
+| `/api/bins` | `GET` | Listar contenedores (filtros por tipo, bbox, búsqueda; `?count=1`) |
+| `/api/bins/:id` | `GET` | Detalle de un contenedor |
+| `/api/stats` | `GET` | Estadísticas agregadas para el cuadro de mandos |
+| `/api/me` | `GET` | Usuario por defecto y sus estadísticas personales |
+| `/api/leaderboard` | `GET` | Clasificación de ciudadanos y barrios por puntos |
+| `/api/geocode` | `GET` | Proxy de geocodificación sobre Nominatim (`?q=...`) |
+| `/api/uploadthing` | `GET`, `POST` | Subida de fotos vía UploadThing |
+
+---
+
+## 8. Cómo arrancar
 
 Requisito: **Node.js** instalado (probado con la v24).
 
@@ -153,9 +175,22 @@ npm start
 
 En desarrollo el service worker está deshabilitado a propósito (`disable: NODE_ENV === 'development'` en `next.config.js`); para probar la PWA instalable usa `npm run build` + `npm start`.
 
+La subida de fotos requiere la variable de entorno `UPLOADTHING_SECRET` (UploadThing). Sin ella, los reportes con foto fallan; los reportes sin foto siguen funcionando.
+
 ---
 
-## 8. Cómo queremos ampliarlo
+## 9. Notas y limitaciones del PMV
+
+Al ser un prototipo de hackathon, hay simplificaciones deliberadas:
+
+- **Sin autenticación real**: el login y el registro son simulados; el rol elegido se guarda en `localStorage` y todos los reportes se asocian a un usuario por defecto (`user-maria`).
+- **Base de datos local**: SQLite en `data/ecochicharro.db`, autogenerada y sembrada en el primer arranque. La carpeta `data/` está en `.gitignore`.
+- **Geocodificación con límites**: `/api/geocode` usa Nominatim (OpenStreetMap), que limita la frecuencia de peticiones; el endpoint cachea resultados en memoria para mitigarlo.
+- La subida de fotos depende de un servicio externo (UploadThing) y de su clave de entorno.
+
+---
+
+## 10. Cómo queremos ampliarlo
 
 Líneas de evolución previstas más allá del hackathon:
 

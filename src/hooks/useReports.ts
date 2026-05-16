@@ -27,8 +27,8 @@ interface Options {
 }
 
 export interface NewReportPayload {
-  photo: string;
-  thumbnail: string;
+  photo?: string;
+  thumbnail?: string;
   lat: number;
   lng: number;
   containerType: ContainerType;
