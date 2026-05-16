@@ -1,6 +1,8 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { generateReactHelpers } from '@uploadthing/react';
+import type { OurFileRouter } from '@/pages/api/uploadthing';
 import CitizenLayout, { NAV_HEIGHT } from '@/components/citizen/CitizenLayout';
 import { Button } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
@@ -12,6 +14,7 @@ import { GeoResult } from '@/lib/capture';
 import { useReports } from '@/hooks/useReports';
 import { ContainerType, IncidentType } from '@/types';
 
+const { useUploadThing } = generateReactHelpers<OurFileRouter>({ url: '/api/uploadthing' });
 const T = THEME;
 
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
@@ -30,6 +33,9 @@ export default function ReportarPage() {
   const [incident, setIncident] = useState<IncidentType>('lleno');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+
+  const { startUpload, isUploading } = useUploadThing('image');
 
   // Prefill desde una papelera del mapa
   useEffect(() => {
@@ -61,6 +67,7 @@ export default function ReportarPage() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    setUploadFile(file);
     setBusy(true);
     setCaptureError(null);
     try {
@@ -78,11 +85,15 @@ export default function ReportarPage() {
   }, [geoMessage]);
 
   const submit = useCallback(async () => {
-    if (!capture) return;
+    if (!capture || !uploadFile) return;
     setSubmitting(true);
     try {
+      const uploadResult = await startUpload([uploadFile]);
+      if (!uploadResult || uploadResult.length === 0 || !uploadResult[0]?.url) {
+        throw new Error('No se pudo subir la imagen');
+      }
       await addReport({
-        photo: capture.photo,
+        photo: uploadResult[0].url,
         thumbnail: capture.thumbnail,
         lat: capture.lat,
         lng: capture.lng,
@@ -92,11 +103,12 @@ export default function ReportarPage() {
         binId,
       });
       router.push('/ciudadano/incidencias');
-    } catch {
-      alert('No se pudo enviar la incidencia.');
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo enviar la incidencia. Inténtalo de nuevo.');
       setSubmitting(false);
     }
-  }, [capture, container, incident, note, binId, addReport, router]);
+  }, [capture, container, incident, note, binId, addReport, router, startUpload, uploadFile]);
 
   // ----- STEP: CAPTURE -----
   if (step === 'capture') {
@@ -345,8 +357,8 @@ export default function ReportarPage() {
         position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 16px',
         background: '#fff', borderTop: `1px solid ${T.border}`, zIndex: 5,
       }}>
-        <Button kind="primary" size="lg" full disabled={submitting} onClick={submit}>
-          {submitting ? 'Enviando…' : 'Enviar incidencia'}
+        <Button kind="primary" size="lg" full disabled={submitting || isUploading} onClick={submit}>
+          {submitting || isUploading ? 'Subiendo imagen…' : 'Enviar incidencia'}
         </Button>
       </div>
     </CitizenLayout>
