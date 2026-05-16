@@ -55,6 +55,10 @@ export default function CiudadanoHome() {
   const [route, setRoute] = useState<Bin[]>([]);
   const [flyTo, setFlyTo] = useState<FlyTo | null>(null);
   const [locating, setLocating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Bin[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchTimer = useRef<NodeJS.Timeout | null>(null);
 
   const locateMe = () => {
     if (!navigator.geolocation) return;
@@ -91,8 +95,8 @@ export default function CiudadanoHome() {
     const barrioView = bboxFitsBarrio(bbox);
     setIsBarrioView(barrioView);
     if (zoom >= MIN_ZOOM_BINS && barrioView) fetchBins(bbox);
-    else setBins([]);
-  }, [fetchBins]);
+    else setBins(prev => prev.filter(b => route.some(r => r.id === b.id)));
+  }, [fetchBins, route]);
 
   useEffect(() => {
     if (bboxRef.current && zoomRef.current >= MIN_ZOOM_BINS && isBarrioView) fetchBins(bboxRef.current);
@@ -115,6 +119,26 @@ export default function CiudadanoHome() {
   const stats = routeStats(routePoints);
 
   const filterCount = filter.size;
+
+  // debounced search
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!searchQuery.trim()) { setSearchResults([]); setSearchOpen(false); return; }
+    searchTimer.current = setTimeout(() => {
+      fetch(`/api/bins?q=${encodeURIComponent(searchQuery.trim())}&limit=8`)
+        .then(r => r.json())
+        .then((data: Bin[]) => { setSearchResults(data); setSearchOpen(data.length > 0); })
+        .catch(() => {});
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQuery]);
+
+  const selectSearchResult = (bin: Bin) => {
+    setFlyTo({ lat: bin.lat, lng: bin.lng, zoom: 17 });
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchOpen(false);
+  };
 
   return (
     <CitizenLayout title="EcoChicharro · Inicio">
@@ -167,9 +191,47 @@ export default function CiudadanoHome() {
             <Icon name="bell" size={18} color="#fff" />
           </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, padding: '9px 12px', boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <Icon name="search" size={16} color={T.inkMid} />
-          <input placeholder="Buscar calle, plaza, contenedor…" style={{ border: 'none', outline: 'none', flex: 1, fontSize: 13.5, color: T.ink, background: 'transparent' }} />
+        <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, padding: '9px 12px', boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+            <Icon name="search" size={16} color={T.inkMid} />
+            <input
+              placeholder="Buscar calle, plaza, contenedor…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ border: 'none', outline: 'none', flex: 1, fontSize: 13.5, color: T.ink, background: 'transparent' }}
+            />
+            {searchQuery && (
+              <button onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchOpen(false); }} style={{ background: 'none', border: 'none', color: T.inkMid, cursor: 'pointer', padding: 0 }}>
+                <Icon name="x" size={14} />
+              </button>
+            )}
+          </div>
+          {/* Search dropdown */}
+          {searchOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+              background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10,
+              marginTop: 4, boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+              overflow: 'hidden',
+            }}>
+              {searchResults.map(r => {
+                const meta = containerMeta(r.type);
+                return (
+                  <div key={r.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                    padding: '9px 12px', borderBottom: `1px solid ${T.borderSoft}`,
+                  }} onClick={() => selectSearchResult(r)}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: meta.color, flex: '0 0 8px' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: T.ink }}>{meta.label}</div>
+                      <div style={{ fontSize: 11, color: T.inkMid }}>{r.address}</div>
+                    </div>
+                    <Icon name="locate" size={14} color={T.primary} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -308,7 +370,7 @@ export default function CiudadanoHome() {
             </div>
           </div>
           <button
-            onClick={() => router.push('/ciudadano/ruta')}
+            onClick={() => { sessionStorage.setItem('route', JSON.stringify(route)); router.push('/ciudadano/ruta'); }}
             style={{ background: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, color: T.primary, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Ver ruta
@@ -325,7 +387,7 @@ export default function CiudadanoHome() {
       {/* PLANIFICAR RUTA BUTTON (only when no route and no selection) */}
       {route.length === 0 && !selected && (
         <button
-          onClick={() => router.push('/ciudadano/ruta')}
+          onClick={() => { sessionStorage.setItem('route', JSON.stringify(route)); router.push('/ciudadano/ruta'); }}
           style={{
             position: 'absolute', right: 14, bottom: NAV_HEIGHT + 16, zIndex: 18,
             display: 'flex', alignItems: 'center', gap: 6,

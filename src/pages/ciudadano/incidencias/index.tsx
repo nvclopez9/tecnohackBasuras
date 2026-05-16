@@ -38,7 +38,7 @@ function Thumb({ report }: { report: Report }) {
 
 export default function IncidenciasPage() {
   const router = useRouter();
-  const { reports, loading } = useReports();
+  const { reports, loading } = useReports({ filters: { userId: 'user-maria' } });
   const [filter, setFilter] = useState<ReportStatus | 'all'>('all');
 
   const shown = filter === 'all' ? reports : reports.filter((r) => r.status === filter);

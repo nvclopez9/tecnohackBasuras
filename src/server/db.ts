@@ -421,6 +421,8 @@ export interface BinFilters {
   limit?: number;
   /** return count only */
   countOnly?: boolean;
+  /** search by address */
+  q?: string;
 }
 
 export function countBins(): number {
@@ -445,6 +447,10 @@ export function listBins(filters: BinFilters | string = {}): Bin[] {
   } else if (typeList.length > 1) {
     where.push(`type IN (${typeList.map(() => '?').join(',')})`);
     params.push(...typeList);
+  }
+
+  if (filters.q) {
+    where.push('address LIKE ?'); params.push(`%${filters.q}%`);
   }
 
   if (filters.bbox) {

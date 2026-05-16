@@ -281,23 +281,33 @@ export default function MapView({
     });
   }, [reports, showHeatmap, containerFilter, mapReady]);
 
-  // user route polyline + stop markers
+  // user route polyline + stop markers (street routing via OSRM)
   const userPolyRef = useRef<Polyline | null>(null);
   const userStopMarkers = useRef<Marker[]>([]);
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
+    let cancelled = false;
     import('leaflet').then((L) => {
       const map = mapRef.current!;
       if (userPolyRef.current) { userPolyRef.current.remove(); userPolyRef.current = null; }
       userStopMarkers.current.forEach(m => m.remove());
       userStopMarkers.current = [];
-      if (routePoints.length < 1) return;
-      const latlngs = routePoints.map(p => [p.lat, p.lng] as [number, number]);
-      if (latlngs.length >= 2) {
-        userPolyRef.current = L.polyline(latlngs, {
-          color: '#005A9C', weight: 4, opacity: 0.85, dashArray: '6,4',
-        }).addTo(map);
-      }
+      if (routePoints.length < 2) return;
+
+      const coords = routePoints.map(p => `${p.lng},${p.lat}`).join(';');
+      fetch(`https://router.project-osrm.org/route/v1/foot/${coords}?geometries=geojson&overview=full&steps=false`)
+        .then(r => r.json())
+        .then((data) => {
+          if (cancelled || !mapRef.current) return;
+          if (!data.routes?.[0]) return;
+          const geom = data.routes[0].geometry as { coordinates: [number, number][] };
+          const latlngs = geom.coordinates.map(c => [c[1], c[0]] as [number, number]);
+          userPolyRef.current = L.polyline(latlngs, {
+            color: '#005A9C', weight: 5, opacity: 0.85,
+          }).addTo(map);
+        })
+        .catch(() => {});
+
       routePoints.forEach((p, i) => {
         const size = 22;
         const html = `<div style="width:${size}px;height:${size}px;border-radius:50%;background:#005A9C;border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3)">${i + 1}</div>`;
@@ -306,6 +316,7 @@ export default function MapView({
         userStopMarkers.current.push(marker);
       });
     });
+    return () => { cancelled = true; };
   }, [routePoints, mapReady]);
 
   // truck routes — polylines + stop markers

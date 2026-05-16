@@ -18,11 +18,13 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const bbox = typeof req.query.bbox === 'string' ? req.query.bbox : undefined;
   const rawLimit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : NaN;
   const limit = Number.isFinite(rawLimit) ? rawLimit : undefined;
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : undefined;
 
   const bins = listBins({
     types: types.length > 0 ? types : undefined,
     bbox,
     limit,
+    q: q || undefined,
   });
   res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30');
   return res.status(200).json(bins);
