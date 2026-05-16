@@ -23,7 +23,7 @@ export default function CuentaPage() {
 
   const logout = () => {
     clearRole();
-    router.push('/');
+    router.push('/ciudadano/login');
   };
 
   return (

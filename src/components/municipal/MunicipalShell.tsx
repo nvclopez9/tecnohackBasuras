@@ -5,7 +5,7 @@ import { THEME } from '@/lib/theme';
 import { Icon, IconName } from '@/components/ui/Icon';
 import { CONTAINERS, STATUSES, PRIORITIES, containerMeta } from '@/lib/constants';
 import { Report, ContainerType, ReportStatus, Priority } from '@/types';
-import { setRole } from '@/lib/storage';
+import { setRole, clearRole } from '@/lib/storage';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 const T = THEME;
@@ -41,7 +41,7 @@ const NAV: { id: string; label: string; icon: IconName; href: string }[] = [
 ];
 
 // ---------- Topbar ----------
-function Topbar({ isMobile, onMenu }: { isMobile: boolean; onMenu: () => void }) {
+function Topbar({ isMobile, onMenu, onLogout }: { isMobile: boolean; onMenu: () => void; onLogout: () => void }) {
   return (
     <div style={{
       height: 56, background: '#fff', borderBottom: `1px solid ${T.border}`,
@@ -106,6 +106,17 @@ function Topbar({ isMobile, onMenu }: { isMobile: boolean; onMenu: () => void })
             <div style={{ fontSize: 10.5, color: T.inkMid }}>Coord. recogida</div>
           </div>
         )}
+        <button
+          onClick={onLogout}
+          title="Cerrar sesión"
+          style={{
+            width: 30, height: 30, borderRadius: 7, background: 'transparent',
+            border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', cursor: 'pointer', color: T.inkMid, marginLeft: 4,
+          }}
+        >
+          <Icon name="logout" size={15} />
+        </button>
       </div>
     </div>
   );
@@ -165,9 +176,10 @@ interface SidebarProps {
   onFilters?: (f: MuniFilters) => void;
   drawer?: boolean;
   onNavigate?: () => void;
+  onLogout?: () => void;
 }
 
-function Sidebar({ activeNav, reports, filters, onFilters, drawer, onNavigate }: SidebarProps) {
+function Sidebar({ activeNav, reports, filters, onFilters, drawer, onNavigate, onLogout }: SidebarProps) {
   const router = useRouter();
   const showFilters = !!filters && !!onFilters && !!reports;
 
@@ -236,6 +248,23 @@ function Sidebar({ activeNav, reports, filters, onFilters, drawer, onNavigate }:
           );
         })}
       </div>
+
+      {onLogout && (
+        <div style={{ padding: '0 12px 8px' }}>
+          <button
+            onClick={onLogout}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px',
+              borderRadius: 6, background: 'transparent', border: 'none',
+              cursor: 'pointer', textAlign: 'left', color: T.danger,
+              fontSize: 13, fontWeight: 500,
+            }}
+          >
+            <Icon name="logout" size={16} color={T.danger} />
+            <span>Cerrar sesión</span>
+          </button>
+        </div>
+      )}
 
       <div style={{ height: 1, background: T.border, margin: '4px 12px' }} />
 
@@ -349,6 +378,12 @@ interface ShellProps {
 export default function MunicipalShell({ activeNav, children, title = 'EcoChicharro · Municipal', reports, filters, onFilters }: ShellProps) {
   const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const router = useRouter();
+
+  const handleLogout = () => {
+    clearRole();
+    router.push('/ciudadano/login');
+  };
 
   useEffect(() => {
     setRole('municipal');
@@ -366,10 +401,10 @@ export default function MunicipalShell({ activeNav, children, title = 'EcoChicha
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: T.appBg }}>
-        <Topbar isMobile={isMobile} onMenu={() => setDrawerOpen(true)} />
+        <Topbar isMobile={isMobile} onMenu={() => setDrawerOpen(true)} onLogout={handleLogout} />
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
           {!isMobile && (
-            <Sidebar activeNav={activeNav} reports={reports} filters={filters} onFilters={onFilters} />
+            <Sidebar activeNav={activeNav} reports={reports} filters={filters} onFilters={onFilters} onLogout={handleLogout} />
           )}
           <div style={{ flex: 1, overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             {children}
@@ -393,6 +428,7 @@ export default function MunicipalShell({ activeNav, children, title = 'EcoChicha
                 onFilters={onFilters}
                 drawer
                 onNavigate={() => setDrawerOpen(false)}
+                onLogout={handleLogout}
               />
             </div>
           </div>

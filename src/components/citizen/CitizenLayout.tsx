@@ -13,11 +13,15 @@ interface Props {
   hideNav?: boolean;
 }
 
+const AUTH_ROUTES = ['/ciudadano/login', '/ciudadano/register'];
+
 export default function CitizenLayout({ children, title = 'EcoChicharro', hideNav = false }: Props) {
   const router = useRouter();
 
   useEffect(() => {
-    if (getRole() !== 'ciudadano') router.replace('/');
+    // Never redirect from auth pages — they handle their own flow
+    if (AUTH_ROUTES.some(r => router.pathname.startsWith(r))) return;
+    if (getRole() !== 'ciudadano') router.replace('/ciudadano/login');
   }, [router]);
 
   return (

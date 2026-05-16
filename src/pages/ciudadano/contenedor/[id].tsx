@@ -62,6 +62,16 @@ const MOCK_INCIDENTS: Record<ContainerType, { label: string; date: string; statu
     { label: 'Sellado incorrecto', date: 'Hace 2 días', status: 'pendiente' },
     { label: 'Lleno', date: 'Hace 7 días', status: 'resuelto' },
   ],
+  papelera: [
+    { label: 'Llena y desbordada', date: 'Hoy 09:00', status: 'pendiente' },
+    { label: 'Pintadas en superficie', date: 'Hace 4 días', status: 'resuelto' },
+  ],
+  mixto: [
+    { label: 'Materiales mezclados incorrectamente', date: 'Ayer 16:00', status: 'en_proceso' },
+  ],
+  electrico: [
+    { label: 'Lleno — no caben más aparatos', date: 'Hace 3 días', status: 'pendiente' },
+  ],
 };
 
 export default function ContenedorDetailPage() {

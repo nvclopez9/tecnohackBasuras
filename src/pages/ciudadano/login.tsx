@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
-import CitizenLayout from '@/components/citizen/CitizenLayout';
+import Head from 'next/head';
 import { Button } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { setRole } from '@/lib/storage';
@@ -19,9 +19,14 @@ export default function LoginPage() {
   };
 
   return (
-    <CitizenLayout title="EcoChicharro · Iniciar sesión">
+    <>
+      <Head>
+        <title>EcoChicharro · Iniciar sesión</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </Head>
       <div style={{
-        position: 'absolute', inset: 0,
+        position: 'fixed', inset: 0,
+        zIndex: 200,
         background: T.appBg,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
@@ -132,6 +137,6 @@ export default function LoginPage() {
           Demo EcoChicharro · Hackathon TechTenerife 2025
         </div>
       </div>
-    </CitizenLayout>
+    </>
   );
 }

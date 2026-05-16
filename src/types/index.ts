@@ -6,14 +6,20 @@ export type ContainerType =
   | 'resto'
   | 'ropa'
   | 'aceite'
-  | 'baterias';
+  | 'baterias'
+  | 'papelera'
+  | 'mixto'
+  | 'electrico';
 
 export type IncidentType =
   | 'lleno'
   | 'roto'
   | 'sucio'
   | 'quemado'
-  | 'desaparecido';
+  | 'desaparecido'
+  | 'bloqueado'
+  | 'mal_olor'
+  | 'vertido';
 
 export type ReportStatus = 'pendiente' | 'en_proceso' | 'resuelto';
 
@@ -28,6 +34,8 @@ export interface Bin {
   lng: number;
   address: string;
   area: string;
+  capacityLiters?: number | null;
+  ptoRec?: string | null;
 }
 
 export interface User {
@@ -80,6 +88,7 @@ export interface Stats {
   byContainer: Record<ContainerType, number>;
   byArea: { area: string; count: number }[];
   total: number;
+  totalBins: number;
   avgResolutionDays: number;
   highPriorityPct: number;
   heatmap: { lat: number; lng: number }[];

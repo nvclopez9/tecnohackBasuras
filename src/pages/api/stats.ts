@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { listReports } from '@/server/db';
+import { listReports, countBins } from '@/server/db';
 import { CONTAINERS, INCIDENTS, STATUSES } from '@/lib/constants';
 import { Stats, ReportStatus, IncidentType, ContainerType } from '@/types';
 
@@ -47,6 +47,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     byContainer,
     byArea,
     total: reports.length,
+    totalBins: countBins(),
     avgResolutionDays: resolvedCount ? +(resolvedSum / resolvedCount).toFixed(1) : 0,
     highPriorityPct: reports.length ? Math.round((highPriority / reports.length) * 100) : 0,
     heatmap: reports.map(r => ({ lat: r.lat, lng: r.lng })),

@@ -21,6 +21,9 @@ export const CONTAINERS: ContainerMeta[] = [
   { type: 'ropa', label: 'Ropa', color: '#E07A2C', icon: 'shirt' },
   { type: 'aceite', label: 'Aceite', color: '#C99700', icon: 'drop' },
   { type: 'baterias', label: 'Baterías', color: '#A4243B', icon: 'battery' },
+  { type: 'papelera', label: 'Papelera', color: '#607D8B', icon: 'bag' },
+  { type: 'mixto', label: 'Mixto', color: '#795548', icon: 'bag' },
+  { type: 'electrico', label: 'Eléctrico / RAEE', color: '#FFA000', icon: 'flash' },
 ];
 
 export interface IncidentMeta {
@@ -36,6 +39,9 @@ export const INCIDENTS: IncidentMeta[] = [
   { type: 'sucio', label: 'Sucio / mal olor', icon: 'drop', priority: 'baja' },
   { type: 'quemado', label: 'Quemado / vandalizado', icon: 'flame', priority: 'alta' },
   { type: 'desaparecido', label: 'Desaparecido / desplazado', icon: 'question', priority: 'alta' },
+  { type: 'bloqueado', label: 'Bloqueado / inaccesible', icon: 'x', priority: 'media' },
+  { type: 'mal_olor', label: 'Mal olor persistente', icon: 'drop', priority: 'baja' },
+  { type: 'vertido', label: 'Vertido ilegal', icon: 'flame', priority: 'alta' },
 ];
 
 export interface StatusMeta {

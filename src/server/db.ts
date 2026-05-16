@@ -41,7 +41,9 @@ function getDB(): Database.Database {
       lat REAL NOT NULL,
       lng REAL NOT NULL,
       address TEXT NOT NULL,
-      area TEXT NOT NULL
+      area TEXT NOT NULL,
+      capacity_liters REAL DEFAULT NULL,
+      pto_rec TEXT DEFAULT NULL
     );
     CREATE TABLE IF NOT EXISTS reports (
       id TEXT PRIMARY KEY,
@@ -73,7 +75,13 @@ function getDB(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at);
     CREATE INDEX IF NOT EXISTS idx_comments_report ON comments(report_id);
+    CREATE INDEX IF NOT EXISTS idx_bins_type ON bins(type);
+    CREATE INDEX IF NOT EXISTS idx_bins_lat ON bins(lat);
   `);
+  // Migrate existing DBs: add capacity_liters and pto_rec if not present
+  const binCols: string[] = (db.prepare('PRAGMA table_info(bins)').all() as { name: string }[]).map(c => c.name);
+  if (!binCols.includes('capacity_liters')) db.exec('ALTER TABLE bins ADD COLUMN capacity_liters REAL DEFAULT NULL');
+  if (!binCols.includes('pto_rec')) db.exec('ALTER TABLE bins ADD COLUMN pto_rec TEXT DEFAULT NULL');
   seedDatabase(db);
   return db;
 }
@@ -92,9 +100,9 @@ function seedDatabase(conn: Database.Database) {
   const binCount = (conn.prepare('SELECT COUNT(*) n FROM bins').get() as { n: number }).n;
   if (binCount === 0) {
     const insertBin = conn.prepare(
-      'INSERT INTO bins (id, type, lat, lng, address, area) VALUES (?,?,?,?,?,?)'
+      'INSERT INTO bins (id, type, lat, lng, address, area, capacity_liters, pto_rec) VALUES (?,?,?,?,?,?,?,?)'
     );
-    SEED_BINS.forEach(b => insertBin.run(b.id, b.type, b.lat, b.lng, b.address, b.area));
+    SEED_BINS.forEach(b => insertBin.run(b.id, b.type, b.lat, b.lng, b.address, b.area, b.capacityLiters ?? null, b.ptoRec ?? null));
   }
 
   const reportCount = (conn.prepare('SELECT COUNT(*) n FROM reports').get() as { n: number }).n;
@@ -120,14 +128,14 @@ function seedDatabase(conn: Database.Database) {
 }
 
 const SEED_BINS: Bin[] = [
-  { id: 'bin-organico', type: 'organico', lat: 28.4690, lng: -16.2520, address: 'Calle del Castillo, 47', area: 'Centro' },
-  { id: 'bin-envases', type: 'envases', lat: 28.4677, lng: -16.2511, address: 'Plaza de España', area: 'Centro' },
-  { id: 'bin-papel', type: 'papel', lat: 28.4725, lng: -16.2575, address: 'Rambla de Santa Cruz, 120', area: 'Salud' },
-  { id: 'bin-vidrio', type: 'vidrio', lat: 28.4701, lng: -16.2535, address: 'Plaza del Príncipe', area: 'Centro' },
-  { id: 'bin-resto', type: 'resto', lat: 28.4625, lng: -16.2565, address: 'Avenida Tres de Mayo, 12', area: 'Cabo' },
-  { id: 'bin-ropa', type: 'ropa', lat: 28.4705, lng: -16.2485, address: 'Avenida de Anaga, 22', area: 'Anaga' },
-  { id: 'bin-aceite', type: 'aceite', lat: 28.4660, lng: -16.2525, address: 'Calle San Sebastián, 75', area: 'Salud' },
-  { id: 'bin-baterias', type: 'baterias', lat: 28.4728, lng: -16.2548, address: 'Parque García Sanabria', area: 'Centro' },
+  { id: 'bin-organico', type: 'organico', lat: 28.4690, lng: -16.2520, address: 'Calle del Castillo, 47', area: 'Centro', capacityLiters: 240, ptoRec: null },
+  { id: 'bin-envases', type: 'envases', lat: 28.4677, lng: -16.2511, address: 'Plaza de España', area: 'Centro', capacityLiters: 120, ptoRec: null },
+  { id: 'bin-papel', type: 'papel', lat: 28.4725, lng: -16.2575, address: 'Rambla de Santa Cruz, 120', area: 'Salud', capacityLiters: 360, ptoRec: null },
+  { id: 'bin-vidrio', type: 'vidrio', lat: 28.4701, lng: -16.2535, address: 'Plaza del Príncipe', area: 'Centro', capacityLiters: 1000, ptoRec: null },
+  { id: 'bin-resto', type: 'resto', lat: 28.4625, lng: -16.2565, address: 'Avenida Tres de Mayo, 12', area: 'Cabo', capacityLiters: 1100, ptoRec: null },
+  { id: 'bin-ropa', type: 'ropa', lat: 28.4705, lng: -16.2485, address: 'Avenida de Anaga, 22', area: 'Anaga', capacityLiters: 500, ptoRec: null },
+  { id: 'bin-aceite', type: 'aceite', lat: 28.4660, lng: -16.2525, address: 'Calle San Sebastián, 75', area: 'Salud', capacityLiters: 120, ptoRec: null },
+  { id: 'bin-baterias', type: 'baterias', lat: 28.4728, lng: -16.2548, address: 'Parque García Sanabria', area: 'Centro', capacityLiters: 60, ptoRec: null },
 ];
 
 interface SeedReportInput {
@@ -378,22 +386,67 @@ export function deleteReport(id: string): boolean {
 }
 
 // ---------- bins ----------
-interface BinRow { id: string; type: string; lat: number; lng: number; address: string; area: string; }
+interface BinRow {
+  id: string; type: string; lat: number; lng: number;
+  address: string; area: string;
+  capacity_liters: number | null; pto_rec: string | null;
+}
 
-export function listBins(type?: string): Bin[] {
+function rowToBin(b: BinRow): Bin {
+  return {
+    id: b.id, type: b.type as ContainerType,
+    lat: b.lat, lng: b.lng,
+    address: b.address, area: b.area,
+    capacityLiters: b.capacity_liters ?? null,
+    ptoRec: b.pto_rec ?? null,
+  };
+}
+
+export interface BinFilters {
+  type?: string;
+  /** lat_min,lng_min,lat_max,lng_max */
+  bbox?: string;
+  limit?: number;
+  /** return count only */
+  countOnly?: boolean;
+}
+
+export function countBins(): number {
   const conn = getDB();
-  const rows = type
-    ? conn.prepare('SELECT * FROM bins WHERE type = ?').all(type)
-    : conn.prepare('SELECT * FROM bins').all();
-  return (rows as BinRow[]).map(b => ({
-    id: b.id, type: b.type as ContainerType, lat: b.lat, lng: b.lng, address: b.address, area: b.area,
-  }));
+  return ((conn.prepare('SELECT COUNT(*) n FROM bins').get()) as { n: number }).n;
+}
+
+export function listBins(filters: BinFilters | string = {}): Bin[] {
+  const conn = getDB();
+  // backwards compat: old callers pass a type string
+  if (typeof filters === 'string') filters = { type: filters };
+
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  if (filters.type) { where.push('type = ?'); params.push(filters.type); }
+
+  if (filters.bbox) {
+    const parts = filters.bbox.split(',').map(Number);
+    if (parts.length === 4 && parts.every(isFinite)) {
+      const [latMin, lngMin, latMax, lngMax] = parts;
+      where.push('lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?');
+      params.push(latMin, latMax, lngMin, lngMax);
+    }
+  }
+
+  const limit = filters.limit ?? (filters.bbox ? 2000 : 300);
+  const sql =
+    'SELECT * FROM bins' +
+    (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
+    ` LIMIT ${limit}`;
+  return (conn.prepare(sql).all(...params) as BinRow[]).map(rowToBin);
 }
 
 export function getBin(id: string): Bin | null {
   const conn = getDB();
   const b = conn.prepare('SELECT * FROM bins WHERE id = ?').get(id) as BinRow | undefined;
-  return b ? { id: b.id, type: b.type as ContainerType, lat: b.lat, lng: b.lng, address: b.address, area: b.area } : null;
+  return b ? rowToBin(b) : null;
 }
 
 // ---------- users ----------

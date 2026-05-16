@@ -88,6 +88,9 @@ const CONTAINER_ICON: Record<ContainerType, IconName> = {
   ropa: 'shirt',
   aceite: 'drop',
   baterias: 'battery',
+  papelera: 'bag',
+  mixto: 'bag',
+  electrico: 'flash',
 };
 
 export function containerIconName(type: ContainerType): IconName {

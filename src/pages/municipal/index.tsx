@@ -171,6 +171,27 @@ export default function MunicipalDashboard() {
           <div style={{ color: T.inkMid, fontSize: 13 }}>Cargando datos…</div>
         ) : (
           <>
+            {/* Real data banner */}
+            <div style={{
+              background: `linear-gradient(135deg, ${T.primary}10 0%, ${T.primarySky}18 100%)`,
+              border: `1px solid ${T.primary}30`, borderRadius: 10,
+              padding: '10px 14px', marginBottom: 14,
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            }}>
+              <Icon name="cluster" size={20} color={T.primary} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>
+                  {(stats.totalBins ?? 0).toLocaleString('es')} contenedores registrados en el sistema
+                </div>
+                <div style={{ fontSize: 11.5, color: T.inkMid }}>
+                  Datos reales · Cabildo de Tenerife · Santa Cruz de Tenerife
+                </div>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: T.primary, fontVariantNumeric: 'tabular-nums' }}>
+                {(stats.totalBins ?? 0).toLocaleString('es')}
+              </div>
+            </div>
+
             {/* KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
               <KPI label="Total" value={stats.total} sub="Incidencias" />
