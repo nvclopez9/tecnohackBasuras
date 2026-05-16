@@ -5,6 +5,8 @@ import { SC_TENERIFE } from '@/lib/theme';
 import { pinHtml } from '@/lib/pin';
 import { TruckRoute } from '@/lib/truckRoutes';
 
+export interface RoutePoint { lat: number; lng: number; id: string; }
+
 interface Props {
   bins?: Bin[];
   reports?: Report[];
@@ -14,13 +16,17 @@ interface Props {
   onBoundsChange?: (bbox: string, zoom: number) => void;
   showHeatmap?: boolean;
   containerFilter?: Set<ContainerType> | null;
-  variant?: 'light' | 'voyager';
+  variant?: 'light' | 'voyager' | 'dark';
   truckRoutes?: TruckRoute[];
+  routePoints?: RoutePoint[];
+  minZoom?: number;
+  maxZoom?: number;
 }
 
 const TILES = {
   light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
   voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
 };
 
 export default function MapView({
@@ -34,6 +40,9 @@ export default function MapView({
   containerFilter = null,
   variant = 'light',
   truckRoutes = [],
+  routePoints = [],
+  minZoom = 12,
+  maxZoom = 18,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
@@ -60,6 +69,8 @@ export default function MapView({
         center: [SC_TENERIFE.lat, SC_TENERIFE.lng],
         zoom: 15,
         zoomControl: false,
+        minZoom,
+        maxZoom,
       });
       L.tileLayer(TILES[variant], {
         attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OpenStreetMap',
@@ -193,6 +204,33 @@ export default function MapView({
         .addTo(map);
     });
   }, [reports, showHeatmap, containerFilter, mapReady]);
+
+  // user route polyline + stop markers
+  const userPolyRef = useRef<Polyline | null>(null);
+  const userStopMarkers = useRef<Marker[]>([]);
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    import('leaflet').then((L) => {
+      const map = mapRef.current!;
+      if (userPolyRef.current) { userPolyRef.current.remove(); userPolyRef.current = null; }
+      userStopMarkers.current.forEach(m => m.remove());
+      userStopMarkers.current = [];
+      if (routePoints.length < 1) return;
+      const latlngs = routePoints.map(p => [p.lat, p.lng] as [number, number]);
+      if (latlngs.length >= 2) {
+        userPolyRef.current = L.polyline(latlngs, {
+          color: '#005A9C', weight: 4, opacity: 0.85, dashArray: '6,4',
+        }).addTo(map);
+      }
+      routePoints.forEach((p, i) => {
+        const size = 22;
+        const html = `<div style="width:${size}px;height:${size}px;border-radius:50%;background:#005A9C;border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3)">${i + 1}</div>`;
+        const icon = L.divIcon({ className: '', html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+        const marker = L.marker([p.lat, p.lng], { icon }).addTo(map);
+        userStopMarkers.current.push(marker);
+      });
+    });
+  }, [routePoints, mapReady]);
 
   // truck routes — polylines + stop markers
   useEffect(() => {

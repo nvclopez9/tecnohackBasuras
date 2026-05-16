@@ -413,7 +413,9 @@ function rowToBin(b: BinRow): Bin {
 }
 
 export interface BinFilters {
+  /** one type or comma-separated list of types */
   type?: string;
+  types?: string[];
   /** lat_min,lng_min,lat_max,lng_max */
   bbox?: string;
   limit?: number;
@@ -434,7 +436,16 @@ export function listBins(filters: BinFilters | string = {}): Bin[] {
   const where: string[] = [];
   const params: unknown[] = [];
 
-  if (filters.type) { where.push('type = ?'); params.push(filters.type); }
+  // support single type, comma-separated types, or types array
+  const typeList = filters.types?.length
+    ? filters.types
+    : filters.type ? filters.type.split(',').map(t => t.trim()).filter(Boolean) : [];
+  if (typeList.length === 1) {
+    where.push('type = ?'); params.push(typeList[0]);
+  } else if (typeList.length > 1) {
+    where.push(`type IN (${typeList.map(() => '?').join(',')})`);
+    params.push(...typeList);
+  }
 
   if (filters.bbox) {
     const parts = filters.bbox.split(',').map(Number);

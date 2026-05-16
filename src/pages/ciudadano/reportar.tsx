@@ -20,7 +20,6 @@ export default function ReportarPage() {
   const router = useRouter();
   const { addReport } = useReports();
   const cameraRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<'capture' | 'form'>('capture');
   const [busy, setBusy] = useState(false);
@@ -112,14 +111,6 @@ export default function ReportarPage() {
           onChange={handleFile}
           style={{ display: 'none' }}
         />
-        {/* Galería / archivos: sin 'capture', funciona en escritorio. */}
-        <input
-          ref={galleryRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFile}
-          style={{ display: 'none' }}
-        />
         <div style={{
           position: 'absolute', inset: `0 0 ${NAV_HEIGHT}px 0`,
           background: 'linear-gradient(180deg, #16314a 0%, #0d1f30 100%)',
@@ -165,22 +156,8 @@ export default function ReportarPage() {
             </span>
           </button>
           <div style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,.6)' }}>
-            {busy ? 'Procesando…' : 'Toca para tomar la foto'}
+            {busy ? 'Procesando…' : 'Toca para fotografiar el contenedor'}
           </div>
-
-          <button
-            onClick={() => galleryRef.current?.click()}
-            disabled={busy}
-            style={{
-              marginTop: 20, display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '10px 18px', borderRadius: 999,
-              background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.22)',
-              color: '#fff', fontSize: 13, fontWeight: 600,
-              cursor: busy ? 'wait' : 'pointer',
-            }}
-          >
-            <Icon name="image" size={15} color="#fff" /> Elegir de la galería
-          </button>
 
           {captureError && (
             <div style={{

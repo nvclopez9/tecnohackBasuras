@@ -7,16 +7,23 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.status(405).end();
   }
 
-  // ?count=1 → return just the total count (for dashboard)
   if (req.query.count === '1') {
     return res.status(200).json({ count: countBins() });
   }
 
-  const type = typeof req.query.type === 'string' ? req.query.type : undefined;
-  const bbox = typeof req.query.bbox === 'string' ? req.query.bbox : undefined;
-  const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
+  // ?type=papelera  OR  ?type=papelera,resto,organico
+  const rawType = typeof req.query.type === 'string' ? req.query.type : '';
+  const types = rawType ? rawType.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-  const bins = listBins({ type, bbox, limit: Number.isFinite(limit) ? limit : undefined });
-  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+  const bbox = typeof req.query.bbox === 'string' ? req.query.bbox : undefined;
+  const rawLimit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : NaN;
+  const limit = Number.isFinite(rawLimit) ? rawLimit : undefined;
+
+  const bins = listBins({
+    types: types.length > 0 ? types : undefined,
+    bbox,
+    limit,
+  });
+  res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30');
   return res.status(200).json(bins);
 }

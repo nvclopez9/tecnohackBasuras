@@ -7,7 +7,7 @@ export type IconName =
   | 'bell' | 'globe' | 'help' | 'logout' | 'route' | 'leaf' | 'bottle'
   | 'flame' | 'shirt' | 'drop' | 'battery' | 'bag' | 'news' | 'question'
   | 'plus' | 'export' | 'sort' | 'cluster' | 'dot' | 'menu' | 'kebab' | 'send'
-  | 'trophy' | 'medal' | 'clock' | 'star';
+  | 'trophy' | 'medal' | 'clock' | 'star' | 'moon' | 'sun';
 
 interface Props {
   name: IconName;
@@ -75,6 +75,8 @@ export function Icon({ name, size = 18, color = 'currentColor', stroke = 1.7 }: 
     case 'medal': return <svg {...p}><path d="M8 3h8l-3 6h-2Z" /><circle cx="12" cy="15" r="6" /><path d="M10 14l2 2 3-3" /></svg>;
     case 'clock': return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
     case 'star': return <svg {...p}><path d="m12 3 2.7 5.6 6.3.8-4.6 4.4 1.2 6.2L12 17l-5.6 3 1.2-6.2L3 9.4l6.3-.8Z" /></svg>;
+    case 'moon': return <svg {...p}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>;
+    case 'sun': return <svg {...p}><circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></svg>;
     default: return null;
   }
 }
