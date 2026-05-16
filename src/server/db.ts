@@ -33,6 +33,8 @@ function getDB(): Database.Database {
       id TEXT PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       display_name TEXT NOT NULL,
+      barrio TEXT NOT NULL DEFAULT '',
+      points INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS bins (
@@ -78,10 +80,13 @@ function getDB(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_bins_type ON bins(type);
     CREATE INDEX IF NOT EXISTS idx_bins_lat ON bins(lat);
   `);
-  // Migrate existing DBs: add capacity_liters and pto_rec if not present
+  // Migrate existing DBs
   const binCols: string[] = (db.prepare('PRAGMA table_info(bins)').all() as { name: string }[]).map(c => c.name);
   if (!binCols.includes('capacity_liters')) db.exec('ALTER TABLE bins ADD COLUMN capacity_liters REAL DEFAULT NULL');
   if (!binCols.includes('pto_rec')) db.exec('ALTER TABLE bins ADD COLUMN pto_rec TEXT DEFAULT NULL');
+  const userCols: string[] = (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map(c => c.name);
+  if (!userCols.includes('barrio')) db.exec("ALTER TABLE users ADD COLUMN barrio TEXT NOT NULL DEFAULT ''");
+  if (!userCols.includes('points')) db.exec('ALTER TABLE users ADD COLUMN points INTEGER NOT NULL DEFAULT 0');
   seedDatabase(db);
   return db;
 }
@@ -93,8 +98,13 @@ function seedDatabase(conn: Database.Database) {
   const userCount = (conn.prepare('SELECT COUNT(*) n FROM users').get() as { n: number }).n;
   if (userCount === 0) {
     conn.prepare(
-      'INSERT INTO users (id, username, display_name, created_at) VALUES (?,?,?,?)'
-    ).run(DEFAULT_USER_ID, 'maria', 'María Domínguez', Date.now() - 120 * DAY);
+      'INSERT INTO users (id, username, display_name, barrio, points, created_at) VALUES (?,?,?,?,?,?)'
+    ).run(DEFAULT_USER_ID, 'maria', 'María Domínguez', 'Centro', 1820, Date.now() - 120 * DAY);
+  } else {
+    // Ensure María always has her barrio and points set (migration from old seed)
+    conn.prepare(
+      "UPDATE users SET barrio='Centro', points=1820 WHERE id=? AND (barrio='' OR points=0)"
+    ).run(DEFAULT_USER_ID);
   }
 
   const binCount = (conn.prepare('SELECT COUNT(*) n FROM bins').get() as { n: number }).n;
@@ -450,16 +460,25 @@ export function getBin(id: string): Bin | null {
 }
 
 // ---------- users ----------
-interface UserRow { id: string; username: string; display_name: string; created_at: number; }
+interface UserRow { id: string; username: string; display_name: string; barrio: string; points: number; created_at: number; }
+
+function rowToUser(u: UserRow): User {
+  return { id: u.id, username: u.username, displayName: u.display_name, barrio: u.barrio ?? '', points: u.points ?? 0, createdAt: u.created_at };
+}
 
 export function getUser(id: string): User | null {
   const conn = getDB();
   const u = conn.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined;
-  return u ? { id: u.id, username: u.username, displayName: u.display_name, createdAt: u.created_at } : null;
+  return u ? rowToUser(u) : null;
 }
 
 export function getDefaultUser(): User {
   return getUser(DEFAULT_USER_ID)!;
+}
+
+export function listUsers(): User[] {
+  const conn = getDB();
+  return (conn.prepare('SELECT * FROM users ORDER BY points DESC').all() as UserRow[]).map(rowToUser);
 }
 
 // ---------- comments ----------

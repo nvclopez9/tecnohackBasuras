@@ -11,6 +11,7 @@ interface Props {
   selectedId?: string | null;
   onBinClick?: (bin: Bin) => void;
   onReportClick?: (report: Report) => void;
+  onBoundsChange?: (bbox: string, zoom: number) => void;
   showHeatmap?: boolean;
   containerFilter?: Set<ContainerType> | null;
   variant?: 'light' | 'voyager';
@@ -28,6 +29,7 @@ export default function MapView({
   selectedId,
   onBinClick,
   onReportClick,
+  onBoundsChange,
   showHeatmap = false,
   containerFilter = null,
   variant = 'light',
@@ -64,6 +66,16 @@ export default function MapView({
         maxZoom: 20,
       }).addTo(map);
       mapRef.current = map;
+
+      // Emit bounds on initial load and every pan/zoom
+      const emitBounds = () => {
+        const b = map.getBounds();
+        const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+        onBoundsChange?.(bbox, map.getZoom());
+      };
+      map.whenReady(emitBounds);
+      map.on('moveend', emitBounds);
+
       setMapReady(true);
     });
 

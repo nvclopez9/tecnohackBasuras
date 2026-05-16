@@ -163,21 +163,28 @@ dst.exec(`
 
 // ── Import users ──────────────────────────────────────────────────────────────
 
+// Ensure users table has barrio and points columns (migration)
+const userCols = dst.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+if (!userCols.includes('barrio')) dst.exec("ALTER TABLE users ADD COLUMN barrio TEXT NOT NULL DEFAULT ''");
+if (!userCols.includes('points')) dst.exec('ALTER TABLE users ADD COLUMN points INTEGER NOT NULL DEFAULT 0');
+
 console.log('👥  Importing users…');
 const srcUsers = src.prepare('SELECT * FROM users').all();
 const insertUser = dst.prepare(
-  'INSERT OR IGNORE INTO users (id, username, display_name, created_at) VALUES (?,?,?,?)'
+  'INSERT OR IGNORE INTO users (id, username, display_name, barrio, points, created_at) VALUES (?,?,?,?,?,?)'
 );
 const importUsers = dst.transaction((users) => {
   for (const u of users) {
     const username = (u.nombre[0] + u.apellido).toLowerCase().replace(/[^a-z0-9]/g, '');
     const displayName = `${u.nombre} ${u.apellido}`;
+    const barrio = u.barrio || '';
+    const points = u.puntos ?? 0;
     const createdAt = u.created_at ? new Date(u.created_at).getTime() : Date.now() - 30 * DAY;
-    insertUser.run(`th-${u.user_id}`, username || `user${u.user_id}`, displayName, createdAt);
+    insertUser.run(`th-${u.user_id}`, username || `user${u.user_id}`, displayName, barrio, points, createdAt);
   }
 });
 importUsers(srcUsers);
-console.log(`   ✓ ${srcUsers.length} users imported`);
+console.log(`   ✓ ${srcUsers.length} users imported (con barrio y puntos)`);
 
 // ── Import bins (containers) ──────────────────────────────────────────────────
 

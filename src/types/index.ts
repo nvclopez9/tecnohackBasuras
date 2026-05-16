@@ -42,7 +42,35 @@ export interface User {
   id: string;
   username: string;
   displayName: string;
+  barrio: string;
+  points: number;
   createdAt: number;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  barrio: string;
+  pts: number;
+  initials: string;
+  avatar: string;
+  isMe: boolean;
+  delta: number;
+}
+
+export interface BarrioRankEntry {
+  name: string;
+  pts: number;
+  members: number;
+}
+
+export interface LeaderboardData {
+  entries: LeaderboardEntry[];
+  barrios: BarrioRankEntry[];
+  myBarrio: string;
+  myRank: number;
+  myPts: number;
 }
 
 export interface Report {

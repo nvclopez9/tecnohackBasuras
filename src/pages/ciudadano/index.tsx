@@ -1,13 +1,15 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import CitizenLayout, { NAV_HEIGHT } from '@/components/citizen/CitizenLayout';
 import { Chip, ContainerChip, Button } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
-import { useBins } from '@/hooks/useBins';
 import { THEME } from '@/lib/theme';
 import { CONTAINERS, containerMeta } from '@/lib/constants';
 import { Bin, ContainerType } from '@/types';
+
+// Zoom mínimo para cargar contenedores (evita cargar miles de pins al hacer zoom out)
+const MIN_ZOOM_BINS = 14;
 
 const T = THEME;
 
@@ -26,9 +28,30 @@ const MapView = dynamic(() => import('@/components/MapView'), {
 
 export default function CiudadanoHome() {
   const router = useRouter();
-  const { bins } = useBins();
+  const [bins, setBins] = useState<Bin[]>([]);
+  const [mapZoom, setMapZoom] = useState(15);
+  const bboxRef = useRef<string | null>(null);
   const [filter, setFilter] = useState<Set<ContainerType>>(new Set());
   const [selected, setSelected] = useState<Bin | null>(null);
+
+  // Carga bins para el viewport actual (bbox-based)
+  const fetchBins = useCallback((bbox: string) => {
+    fetch(`/api/bins?bbox=${bbox}&limit=300`)
+      .then(r => r.json())
+      .then((data: Bin[]) => setBins(data))
+      .catch(() => {});
+  }, []);
+
+  // Llamado por MapView en cada pan/zoom
+  const handleBoundsChange = useCallback((bbox: string, zoom: number) => {
+    bboxRef.current = bbox;
+    setMapZoom(zoom);
+    if (zoom >= MIN_ZOOM_BINS) {
+      fetchBins(bbox);
+    } else {
+      setBins([]); // zoom out → limpiar pins
+    }
+  }, [fetchBins]);
 
   const toggle = (type: ContainerType) => {
     setFilter((prev) => {
@@ -50,7 +73,22 @@ export default function CiudadanoHome() {
           containerFilter={filterSet}
           selectedId={selected?.id}
           onBinClick={(b) => setSelected(b)}
+          onBoundsChange={handleBoundsChange}
         />
+        {/* Badge zoom-out */}
+        {mapZoom < MIN_ZOOM_BINS && (
+          <div style={{
+            position: 'absolute', bottom: NAV_HEIGHT + 80, left: '50%',
+            transform: 'translateX(-50%)', zIndex: 25,
+            background: 'rgba(0,0,0,.72)', color: '#fff',
+            borderRadius: 999, padding: '7px 14px',
+            fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+            whiteSpace: 'nowrap',
+          }}>
+            <Icon name="pin" size={14} color="#fff" />
+            12.078 contenedores · acerca el mapa para verlos
+          </div>
+        )}
       </div>
 
       {/* TOP HEADER */}
