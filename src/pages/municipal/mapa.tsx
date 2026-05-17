@@ -1,5 +1,5 @@
 import dynamic from 'next/dynamic';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import MunicipalShell, { MuniFilters, EMPTY_FILTERS, applyFilters } from '@/components/municipal/MunicipalShell';
 import DetailPanel from '@/components/municipal/DetailPanel';
 import { MapBtn, Badge } from '@/components/ui/primitives';
@@ -10,26 +10,19 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { THEME } from '@/lib/theme';
 import { CONTAINERS, incidentMeta, statusMeta } from '@/lib/constants';
 import { Report } from '@/types';
+import type { MapVariant } from '@/components/MapView';
 
 const T = THEME;
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
-type MapLayer = 'pines' | 'heatmap' | 'calles';
+type MapLayer = 'pines' | 'heatmap';
 
-function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-const STREETS_SHIMMER = `
-@keyframes streetsShimmer {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
-}
-`;
+const MAP_VARIANTS: { id: MapVariant; label: string; swatch: string }[] = [
+  { id: 'voyager',   label: 'Calles',   swatch: 'linear-gradient(135deg,#E7EFE3,#CBD9C9)' },
+  { id: 'light',     label: 'Claro',    swatch: 'linear-gradient(135deg,#F4F6F8,#DDE3E8)' },
+  { id: 'dark',      label: 'Oscuro',   swatch: 'linear-gradient(135deg,#3A3A48,#1A1A26)' },
+  { id: 'satellite', label: 'Satélite', swatch: 'linear-gradient(135deg,#5C6E45,#2E3A24)' },
+];
 
 export default function MunicipalMapa() {
   const { reports, mergeReport } = useReports({ poll: true });
@@ -39,44 +32,11 @@ export default function MunicipalMapa() {
   const [layer, setLayer] = useState<MapLayer>('pines');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showBinsOverlay, setShowBinsOverlay] = useState(false);
-
-  const [streetData, setStreetData] = useState<{ id: string; points: { lat: number; lng: number }[] }[]>([]);
-  const [streetsLoading, setStreetsLoading] = useState(false);
-
-  useEffect(() => {
-    if (layer !== 'calles' || streetData.length > 0 || streetsLoading) return;
-    setStreetsLoading(true);
-    fetch('/api/streets')
-      .then(r => r.json())
-      .then(data => { setStreetData(Array.isArray(data) ? data : []); })
-      .catch(() => {})
-      .finally(() => setStreetsLoading(false));
-  }, [layer, streetData.length, streetsLoading]);
+  const [mapVariant, setMapVariant] = useState<MapVariant>('voyager');
+  const [variantOpen, setVariantOpen] = useState(false);
 
   const filtered = useMemo(() => applyFilters(reports, filters), [reports, filters]);
   const selected = filtered.find((r) => r.id === selectedId) ?? reports.find((r) => r.id === selectedId) ?? null;
-
-  const streetLines = useMemo(() => {
-    if (layer !== 'calles' || streetData.length === 0) return [];
-    const NEAR = 35;
-    const lines = streetData.map(street => {
-      let count = 0;
-      filtered.forEach(r => {
-        const near = street.points.some(p => haversineM(r.lat, r.lng, p.lat, p.lng) < NEAR);
-        if (near) count++;
-      });
-      return { street, count };
-    });
-    const max = Math.max(1, ...lines.map(l => l.count));
-    return lines
-      .filter(l => l.count > 0)
-      .map(l => {
-        const ratio = l.count / max;
-        const color = ratio > 0.66 ? T.danger : ratio > 0.33 ? T.warn : T.success;
-        const weight = ratio > 0.66 ? 5 : ratio > 0.33 ? 4 : 3;
-        return { points: l.street.points, color, weight };
-      });
-  }, [layer, streetData, filtered]);
 
   return (
     <MunicipalShell
@@ -86,50 +46,70 @@ export default function MunicipalMapa() {
       filters={filters}
       onFilters={setFilters}
     >
-      <style>{STREETS_SHIMMER}</style>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* MAP */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0 }}>
           <MapView
-            reports={layer === 'calles' ? [] : filtered}
+            reports={filtered}
             bins={showBinsOverlay ? bins : []}
             showHeatmap={layer === 'heatmap'}
             zoneCircles={[]}
-            streetLines={streetLines}
             selectedId={selectedId}
             onReportClick={(r) => setSelectedId(r.id)}
-            variant="voyager"
+            variant={mapVariant}
           />
 
-          {/* Streets loading progress bar */}
-          {streetsLoading && (
-            <div style={{
-              position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-              zIndex: 600, background: 'rgba(26,26,46,0.92)',
-              borderRadius: 10, padding: '8px 14px', minWidth: 240, maxWidth: 320,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>📡</span> Descargando red viaria de Santa Cruz…
-              </div>
-              <div style={{
-                height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)',
-                overflow: 'hidden', position: 'relative',
-              }}>
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%)',
-                  animation: 'streetsShimmer 1.5s linear infinite',
-                }} />
-              </div>
-            </div>
-          )}
-
-          {/* Layer selector */}
-          <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6, zIndex: 500, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {/* Layer + style selectors */}
+          <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6, zIndex: 500, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
             <MapBtn icon={<Icon name="pin" size={13} />} label="Pines" active={layer === 'pines'} onClick={() => setLayer('pines')} />
             <MapBtn icon={<Icon name="flame" size={13} />} label="Heatmap" active={layer === 'heatmap'} onClick={() => setLayer('heatmap')} />
-            <MapBtn icon={<Icon name="route" size={13} />} label="Calles" active={layer === 'calles'} onClick={() => setLayer('calles')} />
+
+            {/* Map style picker */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setVariantOpen(o => !o)}
+                title="Estilo de mapa"
+                style={{
+                  height: 32, padding: '0 10px', borderRadius: 7,
+                  background: variantOpen ? T.primary : '#fff',
+                  border: `1px solid ${variantOpen ? T.primary : T.border}`,
+                  boxShadow: '0 2px 6px rgba(0,0,0,.12)',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  color: variantOpen ? '#fff' : T.ink,
+                }}
+              >
+                <Icon name="layers" size={13} color={variantOpen ? '#fff' : T.inkMid} />
+                {MAP_VARIANTS.find(v => v.id === mapVariant)?.label ?? 'Mapa'}
+              </button>
+              {variantOpen && (
+                <div style={{
+                  position: 'absolute', top: 38, right: 0, zIndex: 600,
+                  background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10,
+                  padding: 8, boxShadow: '0 4px 16px rgba(0,0,0,.14)',
+                  display: 'grid', gridTemplateColumns: 'repeat(2, 68px)', gap: 6,
+                }}>
+                  {MAP_VARIANTS.map(v => {
+                    const active = mapVariant === v.id;
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => { setMapVariant(v.id); setVariantOpen(false); }}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                          padding: 5, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+                          background: active ? T.primaryTint : 'transparent',
+                          border: `1px solid ${active ? T.primary : 'transparent'}`,
+                        }}
+                      >
+                        <span style={{ width: '100%', height: 32, borderRadius: 5, background: v.swatch, border: `1px solid ${T.border}` }} />
+                        <span style={{ fontSize: 10, fontWeight: 600, color: active ? T.primary : T.inkMid }}>{v.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Bins toggle FAB */}
@@ -163,27 +143,6 @@ export default function MunicipalMapa() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.inkMid, marginTop: 3 }}>
                   <span>Baja</span><span>Alta</span>
                 </div>
-              </div>
-            ) : layer === 'calles' ? (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
-                  {streetsLoading ? 'Cargando red viaria…' : 'Intensidad en calles'}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {[
-                    { c: T.success, l: 'Baja densidad' },
-                    { c: T.warn, l: 'Densidad media' },
-                    { c: T.danger, l: 'Alta densidad' },
-                  ].map(x => (
-                    <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: T.ink }}>
-                      <span style={{ width: 22, height: 4, borderRadius: 2, background: x.c, flexShrink: 0 }} />
-                      {x.l}
-                    </div>
-                  ))}
-                </div>
-                {streetLines.length === 0 && !streetsLoading && (
-                  <div style={{ fontSize: 10, color: T.inkMid, marginTop: 6 }}>Sin incidencias en calles</div>
-                )}
               </div>
             ) : (
               <>

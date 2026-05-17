@@ -64,7 +64,7 @@ export default function CiudadanoHome() {
   const [bins, setBins] = useState<Bin[]>([]);
   const [mapZoom, setMapZoom] = useState(17);
   const [isBarrioView, setIsBarrioView] = useState(false);
-  const [mapVariant, setMapVariant] = useState<MapVariant>('light');
+  const [mapVariant, setMapVariant] = useState<MapVariant>('voyager');
   const [layerOpen, setLayerOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<Set<ContainerType>>(new Set(['mixto', 'papel', 'envases']));
@@ -77,6 +77,7 @@ export default function CiudadanoHome() {
   const [searchResults, setSearchResults] = useState<GeoHit[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchTimer = useRef<NodeJS.Timeout | null>(null);
+  const [binPendingCount, setBinPendingCount] = useState(0);
 
   // Cargar ruta guardada de localStorage al montar
   useEffect(() => {
@@ -92,6 +93,18 @@ export default function CiudadanoHome() {
       localStorage.setItem('eco-route', JSON.stringify(route));
     }
   }, [route]);
+
+  // Incidencias pendientes del bin seleccionado
+  useEffect(() => {
+    if (!selected) { setBinPendingCount(0); return; }
+    fetch(`/api/reports?binId=${selected.id}`)
+      .then(r => r.json())
+      .then((data: { status: string }[]) => {
+        if (!Array.isArray(data)) return;
+        setBinPendingCount(data.filter(r => r.status !== 'resuelto').length);
+      })
+      .catch(() => setBinPendingCount(0));
+  }, [selected?.id]);
 
   // Estilo de mapa preferido (persistido).
   useEffect(() => {
@@ -560,16 +573,23 @@ export default function CiudadanoHome() {
                 <Icon name="list" size={13} color={T.inkMid} />
                 Info
               </button>
-              {/* Reportar — flex:1 */}
+              {/* Incidencias pendientes — flex:1 */}
               <button
-                onClick={() => router.push(`/ciudadano/reportar?binId=${selected.id}&containerType=${selected.type}`)}
+                onClick={() => binPendingCount > 0 && router.push(`/ciudadano/contenedor/${selected.id}`)}
+                disabled={binPendingCount === 0}
+                title={binPendingCount === 0 ? 'Sin incidencias activas' : `Ver ${binPendingCount} incidencia${binPendingCount !== 1 ? 's' : ''} activa${binPendingCount !== 1 ? 's' : ''}`}
                 style={{
                   flex: 1, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                  borderRadius: 10, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                  background: T.danger + '12', border: `1px solid ${T.danger}44`, color: T.danger,
+                  borderRadius: 10, fontSize: 12.5, fontWeight: 600, fontFamily: 'inherit',
+                  cursor: binPendingCount > 0 ? 'pointer' : 'default',
+                  background: binPendingCount > 0 ? T.warn + '18' : T.appBg,
+                  border: `1px solid ${binPendingCount > 0 ? T.warn + '66' : T.border}`,
+                  color: binPendingCount > 0 ? T.warn : T.inkLight,
+                  transition: 'background 0.2s, color 0.2s',
                 }}
               >
-                Reportar
+                <Icon name="bell" size={13} color={binPendingCount > 0 ? T.warn : T.inkLight} />
+                {binPendingCount > 0 ? `${binPendingCount} activa${binPendingCount !== 1 ? 's' : ''}` : 'Sin alertas'}
               </button>
             </div>
           </div>

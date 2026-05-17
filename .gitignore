@@ -19,4 +19,4 @@ public/fallback-*.js
 # OS
 .DS_Store
 Thumbs.db
-data/fotosIngestar/*
+data/*

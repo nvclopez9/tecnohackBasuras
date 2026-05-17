@@ -34,10 +34,11 @@ export function activeFilterCount(f: MuniFilters): number {
 }
 
 const NAV: { id: string; label: string; icon: IconName; href: string }[] = [
-  { id: 'dashboard', label: 'Cuadro de mandos', icon: 'cluster', href: '/municipal' },
-  { id: 'mapa', label: 'Mapa analítico', icon: 'pin', href: '/municipal/mapa' },
-  { id: 'temporal', label: 'Análisis temporal', icon: 'clock', href: '/municipal/temporal' },
-  { id: 'lista', label: 'Incidencias', icon: 'list', href: '/municipal/lista' },
+  { id: 'dashboard',     label: 'Cuadro de mandos',    icon: 'cluster', href: '/municipal' },
+  { id: 'mapa',          label: 'Mapa analítico',       icon: 'pin',     href: '/municipal/mapa' },
+  { id: 'temporal',      label: 'Análisis temporal',    icon: 'clock',   href: '/municipal/temporal' },
+  { id: 'contenedores',  label: 'Contenedores',         icon: 'trash',   href: '/municipal/contenedores' },
+  { id: 'lista',         label: 'Incidencias',          icon: 'list',    href: '/municipal/lista' },
 ];
 
 // ---------- Topbar ----------

@@ -35,6 +35,7 @@ async function fetchStreets(): Promise<StreetLine[]> {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `data=${encodeURIComponent(query)}`,
+    signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) throw new Error(`Overpass ${res.status}`);
   const json = await res.json();
