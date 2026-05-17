@@ -13,6 +13,13 @@ const MIN_ZOOM_BINS = 14;
 const MAX_BARRIO_SPAN = 0.058;
 const T = THEME;
 
+const POPUP_KEYFRAMES = `
+@keyframes popupSlideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+`;
+
 const MAP_LAYERS: { id: MapVariant; label: string; swatch: string }[] = [
   { id: 'light', label: 'Claro', swatch: 'linear-gradient(135deg,#F4F6F8,#DDE3E8)' },
   { id: 'voyager', label: 'Calles', swatch: 'linear-gradient(135deg,#E7EFE3,#CBD9C9)' },
@@ -70,6 +77,21 @@ export default function CiudadanoHome() {
   const [searchResults, setSearchResults] = useState<GeoHit[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Cargar ruta guardada de localStorage al montar
+  useEffect(() => {
+    const raw = localStorage.getItem('eco-route');
+    if (raw) {
+      try { setRoute(JSON.parse(raw) as Bin[]); } catch { /* ignore */ }
+    }
+  }, []);
+
+  // Persistir ruta en localStorage cuando cambie
+  useEffect(() => {
+    if (route.length > 0) {
+      localStorage.setItem('eco-route', JSON.stringify(route));
+    }
+  }, [route]);
 
   // Estilo de mapa preferido (persistido).
   useEffect(() => {
@@ -169,6 +191,7 @@ export default function CiudadanoHome() {
 
   return (
     <CitizenLayout title="EcoChicharro · Inicio">
+      <style>{POPUP_KEYFRAMES}</style>
       {/* MAP */}
       <div style={{ position: 'absolute', inset: 0 }}>
         <MapView
@@ -383,7 +406,7 @@ export default function CiudadanoHome() {
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
-              {CONTAINERS.filter(c => !['resto', 'organico', 'baterias'].includes(c.type)).map(c => {
+              {CONTAINERS.map(c => {
                 const active = filter.has(c.type);
                 const meta = containerMeta(c.type);
                 return (
@@ -428,13 +451,13 @@ export default function CiudadanoHome() {
             </div>
           </div>
           <button
-            onClick={() => { sessionStorage.setItem('route', JSON.stringify(route)); router.push('/ciudadano/ruta'); }}
+            onClick={() => { localStorage.setItem('eco-route', JSON.stringify(route)); router.push('/ciudadano/ruta'); }}
             style={{ background: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, color: T.primary, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Ver ruta
           </button>
           <button
-            onClick={() => setRoute([])}
+            onClick={() => { localStorage.removeItem('eco-route'); setRoute([]); }}
             style={{ background: 'rgba(255,255,255,.2)', border: 'none', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           >
             <Icon name="x" size={14} color="#fff" />
@@ -445,7 +468,7 @@ export default function CiudadanoHome() {
       {/* PLANIFICAR RUTA BUTTON (only when no route and no selection) */}
       {route.length === 0 && !selected && (
         <button
-          onClick={() => { sessionStorage.setItem('route', JSON.stringify(route)); router.push('/ciudadano/ruta'); }}
+          onClick={() => router.push('/ciudadano/ruta')}
           style={{
             position: 'absolute', right: 14, bottom: NAV_HEIGHT + 16, zIndex: 18,
             display: 'flex', alignItems: 'center', gap: 6,
@@ -460,70 +483,97 @@ export default function CiudadanoHome() {
         </button>
       )}
 
-      {/* BOTTOM SHEET */}
+      {/* POPUP CARD — compact floating, no full-width sheet */}
       {selected && (
-        <div style={{
-          position: 'absolute', left: 0, right: 0, bottom: NAV_HEIGHT, zIndex: 40,
-          background: '#fff', borderRadius: '16px 16px 0 0',
-          padding: '14px 18px 18px', boxShadow: '0 -6px 22px rgba(0,0,0,.12)',
-          borderTop: `1px solid ${T.border}`,
-        }}>
-          <div style={{ width: 36, height: 4, background: T.border, borderRadius: 999, margin: '0 auto 12px' }} />
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <span style={{
-              width: 40, height: 40, borderRadius: 10,
-              background: containerMeta(selected.type).color + '22',
-              color: containerMeta(selected.type).color,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Icon name="pin" size={20} />
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>
-                {containerMeta(selected.type).label}
+        <>
+          {/* Invisible backdrop: click anywhere on map to dismiss */}
+          <div
+            onClick={() => setSelected(null)}
+            style={{ position: 'absolute', inset: 0, zIndex: 39 }}
+          />
+          <div style={{
+            position: 'fixed',
+            bottom: `calc(${NAV_HEIGHT}px + 12px)`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 'min(340px, calc(100vw - 32px))',
+            zIndex: 40,
+            background: '#fff',
+            borderRadius: 16,
+            padding: '14px 16px 12px',
+            boxShadow: '0 -4px 24px rgba(0,0,0,.14), 0 8px 32px rgba(0,0,0,.10)',
+            border: `1px solid ${T.borderSoft}`,
+            animation: 'popupSlideUp 0.2s ease-out',
+          }}>
+            {/* Header row */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 11 }}>
+              <span style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: containerMeta(selected.type).color + '1e',
+                color: containerMeta(selected.type).color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Icon name="pin" size={18} color={containerMeta(selected.type).color} />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, lineHeight: 1.2 }}>
+                  {containerMeta(selected.type).label}
+                </div>
+                <div style={{ fontSize: 11.5, color: T.inkMid, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selected.address}{selected.area ? ` · ${selected.area}` : ''}
+                </div>
               </div>
-              <div style={{ fontSize: 12.5, color: T.inkMid, marginTop: 2 }}>
-                {selected.address} · {selected.area}
-              </div>
+              <button
+                onClick={() => setSelected(null)}
+                style={{ background: T.appBg, border: 'none', borderRadius: 6, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                aria-label="Cerrar"
+              >
+                <Icon name="x" size={14} color={T.inkMid} />
+              </button>
             </div>
-            <button onClick={() => setSelected(null)} style={{ background: 'transparent', border: 'none', color: T.inkMid, cursor: 'pointer' }} aria-label="Cerrar">
-              <Icon name="x" size={18} />
-            </button>
-          </div>
 
-          {/* Añadir/quitar de ruta */}
-          <button
-            onClick={toggleRoute}
-            style={{
-              marginTop: 12, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              padding: '9px 14px', borderRadius: 10,
-              background: inRoute ? '#FFF3E0' : T.primaryTint,
-              border: `1px solid ${inRoute ? '#F57C00' : T.primary}`,
-              color: inRoute ? '#E65100' : T.primary,
-              fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-            }}
-          >
-            <Icon name="route" size={16} color={inRoute ? '#E65100' : T.primary} />
-            {inRoute ? 'Quitar de la ruta' : `Añadir a ruta ${route.length > 0 ? `(parada ${route.length + 1})` : ''}`}
-          </button>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <Button
-              kind="secondary" size="md" full
-              icon={<Icon name="list" size={16} />}
-              onClick={() => router.push(`/ciudadano/contenedor/${selected.id}`)}
-            >
-              Ver detalles
-            </Button>
-            <Button
-              kind="primary" size="md" full
-              icon={<Icon name="camera" size={16} />}
-              onClick={() => router.push(`/ciudadano/reportar?binId=${selected.id}&containerType=${selected.type}`)}
-            >
-              Reportar incidencia
-            </Button>
+            {/* Action buttons row */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {/* Añadir / Quitar de ruta — flex:2 */}
+              <button
+                onClick={toggleRoute}
+                style={{
+                  flex: 2, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  background: inRoute ? '#FFF3E0' : T.primaryTint,
+                  border: `1px solid ${inRoute ? '#F57C00' : T.primary}`,
+                  color: inRoute ? '#E65100' : T.primary,
+                }}
+              >
+                <Icon name="route" size={14} color={inRoute ? '#E65100' : T.primary} />
+                {inRoute ? 'Quitar' : `+ Ruta${route.length > 0 ? ` (${route.length + 1})` : ''}`}
+              </button>
+              {/* Detalles — flex:1 */}
+              <button
+                onClick={() => router.push(`/ciudadano/contenedor/${selected.id}`)}
+                style={{
+                  flex: 1, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  borderRadius: 10, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  background: T.appBg, border: `1px solid ${T.border}`, color: T.ink,
+                }}
+              >
+                <Icon name="list" size={13} color={T.inkMid} />
+                Info
+              </button>
+              {/* Reportar — flex:1 */}
+              <button
+                onClick={() => router.push(`/ciudadano/reportar?binId=${selected.id}&containerType=${selected.type}`)}
+                style={{
+                  flex: 1, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  borderRadius: 10, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  background: T.danger + '12', border: `1px solid ${T.danger}44`, color: T.danger,
+                }}
+              >
+                Reportar
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </CitizenLayout>
   );

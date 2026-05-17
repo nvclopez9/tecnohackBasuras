@@ -163,7 +163,6 @@ export default function MunicipalDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const isMobile = useIsMobile();
-
   useEffect(() => {
     const load = () => {
       fetch('/api/stats').then((r) => r.json()).then(setStats).catch(() => {});
@@ -184,13 +183,16 @@ export default function MunicipalDashboard() {
               Servicio de recogida · Santa Cruz de Tenerife
             </div>
           </div>
-          <Button kind="ghost" size="sm" icon={<Icon name="export" size={14} />}>Exportar</Button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Button kind="ghost" size="sm" icon={<Icon name="export" size={14} />}>Exportar</Button>
+          </div>
         </div>
 
         {!stats ? (
           <div style={{ color: T.inkMid, fontSize: 13 }}>Cargando datos…</div>
         ) : (
           <>
+<<<<<<< HEAD
             {/* Real data banner */}
             <div style={{
               background: `linear-gradient(135deg, ${T.primary}10 0%, ${T.primarySky}18 100%)`,
@@ -211,6 +213,8 @@ export default function MunicipalDashboard() {
                 {(stats.totalBins ?? 0).toLocaleString('es')}
               </div>
             </div>
+=======
+>>>>>>> origin/dev
 
             {/* KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
