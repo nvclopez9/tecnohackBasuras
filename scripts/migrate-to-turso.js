@@ -1,150 +1,208 @@
 /**
  * Migrate local SQLite data → Turso (remote libSQL)
  *
- * Run from project root:
- *   node scripts/migrate-to-turso.js
+ * NOTE: ecochicharro.db is corrupt (SQLITE_CORRUPT) so we extract data
+ * from raw bytes using ASCII string scanning + regex.
  *
- * Requires TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in .env.local
+ * SQLite schema detected:
+ *   recycling_containers (id INTEGER PK AUTO, CAPACIDAD TEXT, GRAD_X TEXT, GRAD_Y TEXT, tipo_cont TEXT)
+ *   incidents (incident_id, contenedor_id, user_id, tipo_incidencia, descripcion, urgencia, estado, created_at, resolved_at)
+ *   users (user_id INTEGER PK AUTO, nombre, apellido, barrio, puntos, created_at)
+ *
+ * Turso schema (from db.ts):
+ *   bins (id TEXT PK, type, lat, lng, address, area, capacity_liters, pto_rec)
+ *   users (id TEXT PK, username, display_name, barrio, points, created_at)
+ *   reports (id, code, user_id, bin_id, photo, thumbnail, lat, lng, address, area,
+ *            container_type, incident_type, description, status, priority, assignee,
+ *            resolution_note, created_at, updated_at)
+ *   comments (id, report_id, author_role, text, created_at)
+ *
+ * Run from project root:  node scripts/migrate-to-turso.js
  */
+'use strict';
 
 const { createClient } = require('@libsql/client');
 const path = require('path');
 const fs = require('fs');
 
-// Cargar .env.local manualmente
-const envPath = path.join(process.cwd(), '.env.local');
-if (fs.existsSync(envPath)) {
-  for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
-    const m = line.match(/^\s*([\w_]+)=['"]?(.*?)['"]?\s*$/);
-    if (m) process.env[m[1]] = m[2];
+// ── Load .env.local manually ──────────────────────────────────────────────────
+const envPath = path.join(__dirname, '..', '.env.local');
+const envLines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+for (const line of envLines) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('#')) continue;
+  const eqIdx = trimmed.indexOf('=');
+  if (eqIdx < 0) continue;
+  const key = trimmed.slice(0, eqIdx).trim();
+  let val = trimmed.slice(eqIdx + 1).trim();
+  if ((val.startsWith("'") && val.endsWith("'")) ||
+      (val.startsWith('"') && val.endsWith('"'))) {
+    val = val.slice(1, -1);
   }
+  process.env[key] = val;
 }
 
-const DB_PATH = path.join(process.cwd(), 'data', 'ecochicharro.db');
-
-if (!fs.existsSync(DB_PATH)) {
-  console.error(`ERROR: local database not found at ${DB_PATH}`);
+const TURSO_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN;
+if (!TURSO_URL || !TURSO_TOKEN) {
+  console.error('ERROR: Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN in .env.local');
   process.exit(1);
 }
 
-if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
-  console.error('ERROR: TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set in .env.local');
-  process.exit(1);
-}
+// ── Connect to Turso ──────────────────────────────────────────────────────────
+const client = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
 
-// ── Open both databases via libSQL ─────────────────────────────────────────────
+// ── Extract recycling_containers from corrupt SQLite using raw bytes ───────────
+const SQLITE_PATH = 'C:\\Users\\reva3\\Desktop\\ecochicharro.db';
 
-const local = createClient({ url: `file:${DB_PATH}` });
-console.log(`✓ Conectado a SQLite local: ${DB_PATH}`);
+// Map SQLite tipo_cont values → Turso type values
+const TIPO_MAP = {
+  'vidrio':    'vidrio',
+  'papel':     'papel',
+  'envases':   'envases',
+  'ropa':      'ropa',
+  'aceite':    'aceite',
+  'mixtos':    'mixto',
+  'papeleras': 'mixto',
+  'electricos':'electrico',
+};
 
-const remote = createClient({
-  url: process.env.TURSO_DATABASE_URL,
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
-console.log(`✓ Conectado a Turso: ${process.env.TURSO_DATABASE_URL}`);
+function extractContainersFromRaw() {
+  console.log(`Reading SQLite file: ${SQLITE_PATH}`);
+  const raw = fs.readFileSync(SQLITE_PATH);
+  console.log(`File size: ${raw.length} bytes`);
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function toVal(v) {
-  if (v === null || v === undefined) return 'NULL';
-  if (typeof v === 'bigint') return String(Number(v));
-  if (typeof v === 'number') return String(v);
-  // Escape single quotes for SQL strings
-  return `'${String(v).replace(/'/g, "''")}'`;
-}
-
-async function createSchema() {
-  const statements = [
-    `CREATE TABLE IF NOT EXISTS users (
-       id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL,
-       display_name TEXT NOT NULL, barrio TEXT NOT NULL DEFAULT '',
-       points INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
-     )`,
-    `CREATE TABLE IF NOT EXISTS bins (
-       id TEXT PRIMARY KEY, type TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL,
-       address TEXT NOT NULL, area TEXT NOT NULL,
-       capacity_liters REAL DEFAULT NULL, pto_rec TEXT DEFAULT NULL
-     )`,
-    `CREATE TABLE IF NOT EXISTS reports (
-       id TEXT PRIMARY KEY, code TEXT NOT NULL, user_id TEXT NOT NULL DEFAULT '',
-       bin_id TEXT NOT NULL DEFAULT '', photo TEXT NOT NULL DEFAULT '',
-       thumbnail TEXT NOT NULL DEFAULT '', lat REAL NOT NULL, lng REAL NOT NULL,
-       address TEXT NOT NULL DEFAULT '', area TEXT NOT NULL DEFAULT '',
-       container_type TEXT NOT NULL, incident_type TEXT NOT NULL,
-       description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pendiente',
-       priority TEXT NOT NULL, assignee TEXT NOT NULL DEFAULT '',
-       resolution_note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL,
-       updated_at INTEGER NOT NULL
-     )`,
-    `CREATE TABLE IF NOT EXISTS comments (
-       id TEXT PRIMARY KEY, report_id TEXT NOT NULL,
-       author_role TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL
-     )`,
-    `CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at)`,
-    `CREATE INDEX IF NOT EXISTS idx_comments_report ON comments(report_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_bins_type ON bins(type)`,
-    `CREATE INDEX IF NOT EXISTS idx_bins_lat ON bins(lat)`,
-  ];
-  for (const sql of statements) {
-    await remote.execute(sql);
+  // Collect ASCII printable strings of length >= 4
+  const strings = [];
+  let start = -1;
+  for (let i = 0; i < raw.length; i++) {
+    const b = raw[i];
+    if (b >= 0x20 && b <= 0x7e) {
+      if (start < 0) start = i;
+    } else {
+      if (start >= 0 && i - start >= 4) {
+        strings.push(raw.toString('ascii', start, i));
+      }
+      start = -1;
+    }
   }
-  console.log('  ✓ Schema creado');
-}
-
-async function getCols(client, table) {
-  const res = await client.execute(`PRAGMA table_info(${table})`);
-  return res.rows.map(c => c.name);
-}
-
-async function migrateTable(table, batchSize = 100) {
-  const cols = await getCols(local, table);
-  const all = await (await local.execute(`SELECT * FROM ${table}`)).rows;
-
-  if (all.length === 0) {
-    console.log(`  ${table}: 0 filas`);
-    return;
+  if (start >= 0 && raw.length - start >= 4) {
+    strings.push(raw.toString('ascii', start, raw.length));
   }
 
-  const colList = cols.join(',');
-  let total = 0;
+  // Pattern in raw pages: (capacity)(-16.xxxxxx)(28.xxxxxx)(tipo_cont)
+  // e.g. "2500.0-16.246956003528.5430612282vidrio"
+  // GRAD_X = longitude (-16.xxx), GRAD_Y = latitude (28.xxx)
+  const pattern = /(\d+(?:\.\d+)?)(-16\.\d{6,})(28\.\d{6,})(\w+)/g;
 
-  for (let i = 0; i < all.length; i += batchSize) {
-    const batch = all.slice(i, i + batchSize);
-    const values = batch.map(row =>
-      `(${cols.map(c => toVal(row[c])).join(',')})`
-    ).join(',\n');
-    const sql = `INSERT OR IGNORE INTO ${table} (${colList}) VALUES\n${values}`;
-    await remote.execute(sql);
-    total += batch.length;
-    process.stdout.write(`\r  ${table}: ${total}/${all.length}`);
+  const seen = new Set();
+  const containers = [];
+
+  for (const str of strings) {
+    pattern.lastIndex = 0;
+    let m;
+    while ((m = pattern.exec(str)) !== null) {
+      const [, capStr, lngStr, latStr, tipoRaw] = m;
+      const lat = parseFloat(latStr);
+      const lng = parseFloat(lngStr);
+      const cap = parseFloat(capStr);
+
+      // Validate Tenerife bounding box
+      if (lat < 27.5 || lat > 29.0 || lng < -17.5 || lng > -15.5) continue;
+
+      // Normalize tipo: strip trailing digits/garbage
+      const tipoClean = tipoRaw.replace(/\d+$/, '').toLowerCase();
+      const type = TIPO_MAP[tipoClean];
+      if (!type) continue;
+
+      // Dedup by lat+lng (8 decimal places)
+      const key = `${lat.toFixed(8)},${lng.toFixed(8)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      containers.push({ lat, lng, capacity: cap, type });
+    }
   }
-  process.stdout.write('\n');
+
+  return containers;
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
+// ── Generate a stable, unique ID from type + coordinates ──────────────────────
+function makeBinId(type, lat, lng) {
+  const latInt = Math.round(Math.abs(lat) * 1e6);
+  const lngInt = Math.round(Math.abs(lng) * 1e6);
+  const hash = (latInt * 10000000 + lngInt % 10000000).toString(36);
+  return `rc-${type.slice(0, 3)}-${hash}`;
+}
 
+// ── Main migration ─────────────────────────────────────────────────────────────
 async function main() {
-  console.log('\n── Migrando esquema ──');
-  await createSchema();
+  const BATCH_SIZE = 50;
 
-  console.log('\n── Migrando datos ──');
-  const tables = ['users', 'bins', 'reports', 'comments'];
-  for (const t of tables) {
-    await migrateTable(t);
+  // 1. Extract containers
+  const containers = extractContainersFromRaw();
+  console.log(`Extracted ${containers.length} unique containers from SQLite raw bytes`);
+  const byType = {};
+  for (const c of containers) byType[c.type] = (byType[c.type] || 0) + 1;
+  console.log('By type:', JSON.stringify(byType));
+
+  // 2. Insert bins into Turso
+  console.log(`\nInserting bins into Turso in batches of ${BATCH_SIZE}...`);
+  let insertedBins = 0;
+  let errorsBins = 0;
+
+  for (let i = 0; i < containers.length; i += BATCH_SIZE) {
+    const batch = containers.slice(i, i + BATCH_SIZE);
+    const stmts = batch.map(c => ({
+      sql: `INSERT OR IGNORE INTO bins (id, type, lat, lng, address, area, capacity_liters, pto_rec)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [makeBinId(c.type, c.lat, c.lng), c.type, c.lat, c.lng, '', '', c.capacity, null],
+    }));
+
+    try {
+      const results = await client.batch(stmts, 'write');
+      for (const r of results) insertedBins += (r.rowsAffected || 0);
+    } catch (batchErr) {
+      // Fall back to row-by-row
+      for (const stmt of stmts) {
+        try {
+          const r = await client.execute(stmt);
+          insertedBins += (r.rowsAffected || 0);
+        } catch {
+          errorsBins++;
+        }
+      }
+    }
+
+    if (i % (BATCH_SIZE * 20) === 0) {
+      process.stdout.write(`  Progress: ${Math.min(i + BATCH_SIZE, containers.length)}/${containers.length}\r`);
+    }
+  }
+  console.log(`  Progress: ${containers.length}/${containers.length}`);
+
+  // 3. Print summary
+  console.log('\n=== MIGRATION RESULTS ===');
+  console.log(`SQLite containers extracted:   ${containers.length}`);
+  console.log(`Bins newly inserted in Turso:  ${insertedBins}`);
+  console.log(`Rows with errors (skipped):    ${errorsBins}`);
+  console.log(`Already existed (INSERT IGNORE):${containers.length - insertedBins - errorsBins}`);
+
+  // 4. Current Turso counts
+  console.log('\n=== TURSO TABLE COUNTS (after migration) ===');
+  for (const table of ['bins', 'users', 'reports', 'comments']) {
+    try {
+      const res = await client.execute(`SELECT COUNT(*) AS n FROM ${table}`);
+      console.log(`  ${table.padEnd(12)} ${Number(res.rows[0]?.n ?? 0)}`);
+    } catch (e) {
+      console.log(`  ${table.padEnd(12)} ERROR: ${e.message}`);
+    }
   }
 
-  console.log('\n── Resumen ──');
-  for (const t of tables) {
-    const res = await remote.execute(`SELECT COUNT(*) AS n FROM ${t}`);
-    const count = Number(res.rows[0]?.n ?? 0);
-    console.log(`  ${t.padEnd(12)} ${count}`);
-  }
-
-  local.close();
-  console.log('\n✅ Migración completada.');
+  await client.close();
+  console.log('\nDone.');
 }
 
 main().catch(err => {
-  console.error('\n❌ Error durante la migración:', err);
+  console.error('Fatal error:', err);
   process.exit(1);
 });

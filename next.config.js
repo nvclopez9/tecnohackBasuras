@@ -62,12 +62,32 @@ const withPWA = require('next-pwa')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
+  // Permite imágenes desde UploadThing CDN y Cloudflare R2
+  images: {
+    domains: ['utfs.io', 'uploadthing.com'],
+  },
+
+  // Headers CORS para las rutas de API — necesarios para UploadThing
+  // cuando el cliente está en el dominio del túnel.
+  async headers() {
+    return [
+      {
+        source: '/api/uploadthing',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type,Authorization,x-uploadthing-version,x-uploadthing-package' },
+        ],
+      },
+    ];
+  },
+
   webpack: (config, { isServer, dev }) => {
     if (isServer) {
-      config.externals.push('better-sqlite3');
+      // better-sqlite3 eliminado; esta línea se deja inofensiva
+      // config.externals.push('better-sqlite3');
     }
-    // La BD SQLite vive en data/ ; sus ficheros WAL/SHM cambian en cada
-    // consulta y dispararían un bucle infinito de recompilación de Next.
     if (dev) {
       config.watchOptions = {
         ...(config.watchOptions || {}),

@@ -169,17 +169,35 @@ npm install
 cp .env.local.example .env.local
 # Editar .env.local con tus credenciales de Turso y UploadThing
 
-# 3. Servidor de desarrollo (recarga en caliente; PWA desactivada)
+# 3a. Solo local (sin fotos desde dispositivo externo)
 npm run dev
+
+# 3b. Con túnel Cloudflare — para UploadThing y acceso desde móvil
+npm run dev:tunnel
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) y elige un rol.
+El comando `dev:tunnel` levanta el servidor de desarrollo **y** un túnel Cloudflare en paralelo.  
+Imprime en consola una URL pública `https://xxxx.trycloudflare.com` que puedes usar desde cualquier dispositivo (móvil, tablet, otra máquina). Esta URL es necesaria para que UploadThing pueda llamar al callback de tu servidor después de subir una foto.
+
+> **Primera vez:** instala cloudflared con `winget install cloudflare.cloudflared` (ya incluido en el README de instalación). No requiere cuenta de Cloudflare.
+
+Abre [http://localhost:3000](http://localhost:3000) (o la URL del túnel desde otro dispositivo) y elige un rol.
 
 ```bash
 # Build de producción + PWA completa
 npm run build
 npm start
 ```
+
+### Scripts disponibles
+
+| Script | Descripción |
+|---|---|
+| `npm run dev` | Desarrollo en `localhost:3000` |
+| `npm run dev:tunnel` | Dev + túnel Cloudflare público (para UploadThing y móvil) |
+| `npm run tunnel` | Solo el túnel (si el dev ya corre en otra terminal) |
+| `npm run build` | Build de producción |
+| `npm start` | Sirve el build de producción |
 
 En desarrollo el service worker está deshabilitado a propósito (`disable: NODE_ENV === 'development'` en `next.config.js`); para probar la PWA instalable usa `npm run build` + `npm start`.
 

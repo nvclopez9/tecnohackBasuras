@@ -12,7 +12,6 @@ import { priorityFor } from '@/lib/priority';
 import { compressImage, getGeolocation, Capture, GeoResult } from '@/lib/capture';
 import { useReports } from '@/hooks/useReports';
 import { Bin, ContainerType, IncidentType } from '@/types';
-import imageCompression from 'browser-image-compression';
 
 const { useUploadThing } = generateReactHelpers<OurFileRouter>({ url: '/api/uploadthing' });
 const T = THEME;
@@ -148,12 +147,7 @@ export default function ReportarPage() {
       let photoUrl = '';
       let thumb = '';
       if (capture && uploadFile) {
-        const compressed = await imageCompression(uploadFile, {
-          maxSizeMB: 1,
-          maxWidthOrHeight: 1280,
-          useWebWorker: false,
-        });
-        const uploadResult = await startUpload([compressed]);
+        const uploadResult = await startUpload([uploadFile]);
         if (!uploadResult || uploadResult.length === 0 || !uploadResult[0]?.url) {
           throw new Error('No se pudo subir la imagen');
         }

@@ -5,14 +5,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000",
+    "dev:tunnel": "concurrently -n next,tunnel -c cyan,yellow --kill-others \"next dev\" \"cloudflared tunnel --url http://localhost:3000\"",
+    "start:tunnel": "concurrently -n next,tunnel -c cyan,yellow --kill-others \"next start\" \"cloudflared tunnel --url http://localhost:3000\""
   },
   "dependencies": {
     "@libsql/client": "^0.17.3",
     "@types/leaflet-routing-machine": "^3.2.9",
     "@types/leaflet.markercluster": "^1.5.6",
     "@uploadthing/react": "^7.3.3",
-    "browser-image-compression": "^2.0.2",
     "exifr": "^7.1.3",
     "idb": "^8.0.0",
     "leaflet": "1.9.4",
@@ -27,10 +29,14 @@
     "uploadthing": "^7.7.4"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/leaflet": "1.9.18",
     "@types/node": "20.4.2",
     "@types/react": "18.2.21",
     "@types/react-dom": "18.2.7",
+    "better-sqlite3": "^12.10.0",
+    "cloudflared": "^0.7.1",
+    "concurrently": "^9.2.1",
     "typescript": "5.2.2"
   }
 }
