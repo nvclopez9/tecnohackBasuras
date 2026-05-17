@@ -1,8 +1,6 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { generateReactHelpers } from '@uploadthing/react';
-import type { OurFileRouter } from '@/pages/api/uploadthing';
 import CitizenLayout, { NAV_HEIGHT } from '@/components/citizen/CitizenLayout';
 import { Button } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
@@ -12,8 +10,6 @@ import { priorityFor } from '@/lib/priority';
 import { compressImage, getGeolocation, Capture, GeoResult } from '@/lib/capture';
 import { useReports } from '@/hooks/useReports';
 import { Bin, ContainerType, IncidentType } from '@/types';
-
-const { useUploadThing } = generateReactHelpers<OurFileRouter>({ url: '/api/uploadthing' });
 const T = THEME;
 
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
@@ -48,12 +44,8 @@ export default function ReportarPage() {
   const [incident, setIncident] = useState<IncidentType>('lleno');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-
   const [nearby, setNearby] = useState<NearbyBin[]>([]);
   const [manualType, setManualType] = useState(false);
-
-  const { startUpload, isUploading } = useUploadThing('image');
 
   const priority = priorityFor(incident);
   const pm = priorityMeta(priority);
@@ -124,7 +116,6 @@ export default function ReportarPage() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    setUploadFile(file);
     setBusy(true);
     setCaptureError(null);
     try {
@@ -144,19 +135,11 @@ export default function ReportarPage() {
     if (!coords) return;
     setSubmitting(true);
     try {
-      let photoUrl = '';
-      let thumb = '';
-      if (capture && uploadFile) {
-        const uploadResult = await startUpload([uploadFile]);
-        if (!uploadResult || uploadResult.length === 0 || !uploadResult[0]?.url) {
-          throw new Error('No se pudo subir la imagen');
-        }
-        photoUrl = uploadResult[0].url;
-        thumb = capture.thumbnail;
-      }
+      // La foto ya está comprimida a base64 (máx 900×900 JPEG 75% ≈ 200 KB).
+      // Se envía directamente en el body — sin dependencia de servicios externos.
       await addReport({
-        photo: photoUrl,
-        thumbnail: thumb,
+        photo: capture?.photo ?? '',
+        thumbnail: capture?.thumbnail ?? '',
         lat: coords.lat,
         lng: coords.lng,
         containerType: container,
@@ -170,7 +153,7 @@ export default function ReportarPage() {
       alert('No se pudo enviar la incidencia. Inténtalo de nuevo.');
       setSubmitting(false);
     }
-  }, [coords, capture, uploadFile, container, incident, note, binId, addReport, router, startUpload]);
+  }, [coords, capture, container, incident, note, binId, addReport, router]);
 
   const selectNearby = (n: NearbyBin) => {
     setBinId(n.bin.id);
@@ -503,8 +486,8 @@ export default function ReportarPage() {
         position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 16px',
         background: '#fff', borderTop: `1px solid ${T.border}`, zIndex: 5,
       }}>
-        <Button kind="primary" size="lg" full disabled={submitting || isUploading} onClick={submit}>
-          {submitting || isUploading ? 'Enviando…' : 'Enviar incidencia'}
+        <Button kind="primary" size="lg" full disabled={submitting} onClick={submit}>
+          {submitting ? 'Enviando…' : 'Enviar incidencia'}
         </Button>
       </div>
     </CitizenLayout>
