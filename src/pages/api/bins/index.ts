@@ -1,15 +1,24 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { listBins, countBins } from '@/server/db';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  handle(req, res).catch(err => {
+    console.error('bins error:', err);
+    res.status(500).json({ error: 'Error interno' });
+  });
+}
+
+async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
-    return res.status(405).end();
+    res.status(405).end();
+    return;
   }
 
   if (req.query.count === '1') {
     const count = await countBins();
-    return res.status(200).json({ count });
+    res.status(200).json({ count });
+    return;
   }
 
   const rawType = typeof req.query.type === 'string' ? req.query.type : '';
@@ -27,5 +36,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     q: q || undefined,
   });
   res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30');
-  return res.status(200).json(bins);
+  res.status(200).json(bins);
 }

@@ -11,72 +11,76 @@ export const config = {
   api: { bodyParser: { sizeLimit: '8mb' } },
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  handle(req, res).catch(err => {
+    console.error('report detail error:', err);
+    res.status(500).json({ error: 'Error interno' });
+  });
+}
+
+async function handle(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
   if (typeof id !== 'string') {
-    return res.status(400).json({ error: 'ID no válido' });
+    res.status(400).json({ error: 'ID no válido' });
+    return;
   }
 
   if (req.method === 'GET') {
     const report = await getReport(id);
-    if (!report) return res.status(404).json({ error: 'No encontrado' });
-    return res.status(200).json(report);
+    if (!report) { res.status(404).json({ error: 'No encontrado' }); return; }
+    res.status(200).json(report);
+    return;
   }
 
-  // PATCH — gestión municipal (estado, asignación, nota de resolución)
   if (req.method === 'PATCH') {
     const b = req.body ?? {};
     const changes: ReportChanges = {};
     if (b.status !== undefined) {
-      if (!STATUS_VALUES.includes(b.status)) {
-        return res.status(400).json({ error: 'Estado no válido' });
-      }
+      if (!STATUS_VALUES.includes(b.status)) { res.status(400).json({ error: 'Estado no válido' }); return; }
       changes.status = b.status as ReportStatus;
     }
     if (b.assignee !== undefined) {
-      if (typeof b.assignee !== 'string') return res.status(400).json({ error: 'Asignado no válido' });
+      if (typeof b.assignee !== 'string') { res.status(400).json({ error: 'Asignado no válido' }); return; }
       changes.assignee = b.assignee;
     }
     if (b.resolutionNote !== undefined) {
-      if (typeof b.resolutionNote !== 'string') return res.status(400).json({ error: 'Nota no válida' });
+      if (typeof b.resolutionNote !== 'string') { res.status(400).json({ error: 'Nota no válida' }); return; }
       changes.resolutionNote = b.resolutionNote;
     }
     const updated = await updateReport(id, changes);
-    if (!updated) return res.status(404).json({ error: 'No encontrado' });
-    return res.status(200).json(updated);
+    if (!updated) { res.status(404).json({ error: 'No encontrado' }); return; }
+    res.status(200).json(updated);
+    return;
   }
 
-  // PUT — edición por el ciudadano (tipo de contenedor, incidencia, descripción)
   if (req.method === 'PUT') {
     const b = req.body ?? {};
     const changes: ReportChanges = {};
     if (b.containerType !== undefined) {
-      if (!CONTAINER_TYPES.includes(b.containerType)) {
-        return res.status(400).json({ error: 'Tipo de contenedor no válido' });
-      }
+      if (!CONTAINER_TYPES.includes(b.containerType)) { res.status(400).json({ error: 'Tipo de contenedor no válido' }); return; }
       changes.containerType = b.containerType as ContainerType;
     }
     if (b.incidentType !== undefined) {
-      if (!INCIDENT_TYPES.includes(b.incidentType)) {
-        return res.status(400).json({ error: 'Tipo de incidencia no válido' });
-      }
+      if (!INCIDENT_TYPES.includes(b.incidentType)) { res.status(400).json({ error: 'Tipo de incidencia no válido' }); return; }
       changes.incidentType = b.incidentType as IncidentType;
     }
     if (b.description !== undefined) {
-      if (typeof b.description !== 'string') return res.status(400).json({ error: 'Descripción no válida' });
+      if (typeof b.description !== 'string') { res.status(400).json({ error: 'Descripción no válida' }); return; }
       changes.description = b.description;
     }
     const updated = await updateReport(id, changes);
-    if (!updated) return res.status(404).json({ error: 'No encontrado' });
-    return res.status(200).json(updated);
+    if (!updated) { res.status(404).json({ error: 'No encontrado' }); return; }
+    res.status(200).json(updated);
+    return;
   }
 
   if (req.method === 'DELETE') {
     const ok = await deleteReport(id);
-    if (!ok) return res.status(404).json({ error: 'No encontrado' });
-    return res.status(200).json({ ok: true });
+    if (!ok) { res.status(404).json({ error: 'No encontrado' }); return; }
+    res.status(200).json({ ok: true });
+    return;
   }
 
   res.setHeader('Allow', ['GET', 'PATCH', 'PUT', 'DELETE']);
-  return res.status(405).end();
+  res.status(405).end();
 }

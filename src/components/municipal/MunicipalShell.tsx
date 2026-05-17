@@ -77,7 +77,7 @@ function Topbar({ isMobile, onMenu, onLogout }: { isMobile: boolean; onMenu: () 
         <>
           <div style={{ height: 24, width: 1, background: T.border }} />
           <div style={{ fontSize: 12.5, color: T.inkMid }}>
-            Cabildo Insular de Tenerife · <span style={{ color: T.ink, fontWeight: 600 }}>Servicios de Limpieza</span>
+            Ayuntamiento de Santa Cruz de Tenerife · <span style={{ color: T.ink, fontWeight: 600 }}>Servicios de Limpieza</span>
           </div>
         </>
       )}

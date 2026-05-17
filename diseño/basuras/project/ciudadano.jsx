@@ -851,7 +851,7 @@ const ScreenCuenta = () => (
       </Button>
 
       <div style={{ textAlign: 'center', marginTop: 18, fontSize: 11, color: ECO_TOKENS.inkLight }}>
-        EcoChicharro v0.4.2 · Cabildo de Tenerife
+        EcoChicharro v0.4.2 · Ayuntamiento de Santa Cruz de Tenerife
       </div>
       <div style={{ height: 16 }}/>
     </div>

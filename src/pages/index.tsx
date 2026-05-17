@@ -14,7 +14,7 @@ export default function LandingPage() {
       <Head>
         <title>EcoChicharro</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="description" content="Gestión de incidencias en contenedores de basura · Cabildo de Tenerife" />
+        <meta name="description" content="Gestión de incidencias en contenedores de basura · Ayuntamiento de Santa Cruz de Tenerife" />
       </Head>
       <div style={{ position: 'fixed', inset: 0, background: '#F6F8FA' }} />
     </>

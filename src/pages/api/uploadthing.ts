@@ -1,4 +1,4 @@
-import { createRouteHandler, createUploadthing } from 'uploadthing/next';
+import { createRouteHandler, createUploadthing } from 'uploadthing/next-legacy';
 
 const f = createUploadthing();
 

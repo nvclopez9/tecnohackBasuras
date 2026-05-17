@@ -10,7 +10,14 @@ export const config = {
   api: { bodyParser: { sizeLimit: '8mb' } },
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  handle(req, res).catch(err => {
+    console.error('reports error:', err);
+    res.status(500).json({ error: 'Error interno' });
+  });
+}
+
+async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     const q = req.query;
     const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
@@ -24,7 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       binId: str(q.binId),
       ids: typeof q.ids === 'string' ? q.ids.split(',').filter(Boolean) : undefined,
     });
-    return res.status(200).json(reports);
+    res.status(200).json(reports);
+    return;
   }
 
   if (req.method === 'POST') {
@@ -37,7 +45,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       !CONTAINER_TYPES.includes(b.containerType) ||
       !INCIDENT_TYPES.includes(b.incidentType)
     ) {
-      return res.status(400).json({ error: 'Datos de reporte no válidos' });
+      res.status(400).json({ error: 'Datos de reporte no válidos' });
+      return;
     }
 
     let address = typeof b.address === 'string' ? b.address : '';
@@ -65,9 +74,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       incidentType: b.incidentType as IncidentType,
       description: typeof b.description === 'string' ? b.description : '',
     });
-    return res.status(201).json(report);
+    res.status(201).json(report);
+    return;
   }
 
   res.setHeader('Allow', ['GET', 'POST']);
-  return res.status(405).end();
+  res.status(405).end();
 }

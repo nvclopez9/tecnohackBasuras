@@ -2,10 +2,18 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getDefaultUser, listReports } from '@/server/db';
 import { UserStats } from '@/types';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  handle(req, res).catch(err => {
+    console.error('me error:', err);
+    res.status(500).json({ error: 'Error interno' });
+  });
+}
+
+async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
-    return res.status(405).end();
+    res.status(405).end();
+    return;
   }
 
   const user = await getDefaultUser();
@@ -18,5 +26,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     pendientes: reports.filter(r => r.status === 'pendiente').length,
   };
 
-  return res.status(200).json({ user, stats });
+  res.status(200).json({ user, stats });
 }

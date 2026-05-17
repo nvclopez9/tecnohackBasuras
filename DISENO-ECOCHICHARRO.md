@@ -20,7 +20,7 @@
 | Densidad | Baja, una tarea por pantalla | Alta, multipanel orientado a datos |
 | Navegación | Barra inferior de 4 pestañas | Layout de escritorio con paneles laterales |
 
-Ambos comparten **identidad institucional del Cabildo de Tenerife**: limpio, ordenado, fiable, centrado en el dato y el mapa.
+Ambos comparten **identidad institucional del Ayuntamiento de Santa Cruz de Tenerife**: limpio, ordenado, fiable, centrado en el dato y el mapa.
 
 ---
 
@@ -219,7 +219,7 @@ La referencia es el visor gubernamental **infoDANA Recuperación** y, en general
 
 ## 6. Paleta de color
 
-Construida alrededor del **azul institucional del Cabildo de Tenerife (PANTONE 301)**, aproximado a `#005A9C`.
+Construida alrededor del **azul institucional del Ayuntamiento de Santa Cruz de Tenerife (PANTONE 301)**, aproximado a `#005A9C`.
 
 ### 6.1. Azules institucionales (marca)
 | Rol | Nombre | Hex | Uso |
@@ -353,4 +353,4 @@ Ver tablas 2.3. Estados como **badges** (texto + fondo del color al 12-15% de op
 
 ## 10. Resumen para el diseñador
 
-Genera **dos interfaces con la misma alma institucional** pero ergonomía opuesta: una **app móvil ciudadana** ligera, de una tarea por pantalla, con barra inferior de 4 pestañas y el mapa como protagonista; y un **panel municipal de escritorio** denso, multipanel, tipo visor de datos institucional (estilo infoDANA), con sidebar de filtros, mapa central con hot spots, dashboard de KPIs y tabla filtrable. Base de color: **azul Cabildo de Tenerife `#005A9C`** sobre neutros claros, con los colores de tipo de contenedor y de estado usados con disciplina solo donde aportan significado. Estética limpia, ordenada, fiable y orientada al dato.
+Genera **dos interfaces con la misma alma institucional** pero ergonomía opuesta: una **app móvil ciudadana** ligera, de una tarea por pantalla, con barra inferior de 4 pestañas y el mapa como protagonista; y un **panel municipal de escritorio** denso, multipanel, tipo visor de datos institucional (estilo infoDANA), con sidebar de filtros, mapa central con hot spots, dashboard de KPIs y tabla filtrable. Base de color: **azul Ayuntamiento de Santa Cruz de Tenerife `#005A9C`** sobre neutros claros, con los colores de tipo de contenedor y de estado usados con disciplina solo donde aportan significado. Estética limpia, ordenada, fiable y orientada al dato.

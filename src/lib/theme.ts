@@ -1,4 +1,4 @@
-// EcoChicharro design tokens — Cabildo de Tenerife (PANTONE 301).
+// EcoChicharro design tokens — Ayuntamiento de Santa Cruz de Tenerife (PANTONE 301).
 // Light, institutional aesthetic inspired by government data viewers.
 
 export const THEME = {

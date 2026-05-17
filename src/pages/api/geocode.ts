@@ -1,24 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-/**
- * Proxy de geocodificación sobre Nominatim (OpenStreetMap).
- * Nominatim exige una cabecera User-Agent identificable y limita las
- * peticiones; hacerlo desde el servidor lo hace fiable y permite cachear.
- */
-
 export interface GeoResult {
   display: string;
-  label: string;     // tipo legible (Calle, Plaza, Edificio…)
+  label: string;
   lat: number;
   lng: number;
 }
 
-// Caja envolvente aproximada de la isla de Tenerife (sesgo de resultados).
 const VIEWBOX = '-16.95,28.00,-16.10,28.60';
-
-// Cache en memoria muy simple (clave = query normalizada).
 const cache = new Map<string, { at: number; data: GeoResult[] }>();
-const TTL = 10 * 60 * 1000; // 10 min
+const TTL = 10 * 60 * 1000;
 
 function labelFor(type: string, cls: string): string {
   const t = (type || '').toLowerCase();
@@ -30,20 +21,29 @@ function labelFor(type: string, cls: string): string {
   return 'Ubicación';
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  handle(req, res).catch(err => {
+    console.error('geocode error:', err);
+    res.status(200).json([]);
+  });
+}
+
+async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
-    return res.status(405).end();
+    res.status(405).end();
+    return;
   }
 
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-  if (q.length < 3) return res.status(200).json([]);
+  if (q.length < 3) { res.status(200).json([]); return; }
 
   const key = q.toLowerCase();
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL) {
     res.setHeader('Cache-Control', 'public, s-maxage=600');
-    return res.status(200).json(hit.data);
+    res.status(200).json(hit.data);
+    return;
   }
 
   try {
@@ -59,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         'Accept-Language': 'es',
       },
     });
-    if (!r.ok) return res.status(200).json([]);
+    if (!r.ok) { res.status(200).json([]); return; }
 
     const raw = (await r.json()) as {
       display_name: string; lat: string; lon: string; type: string; class: string;
@@ -74,8 +74,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     cache.set(key, { at: Date.now(), data });
     res.setHeader('Cache-Control', 'public, s-maxage=600');
-    return res.status(200).json(data);
+    res.status(200).json(data);
   } catch {
-    return res.status(200).json([]);
+    res.status(200).json([]);
   }
 }

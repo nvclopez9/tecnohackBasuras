@@ -18,15 +18,22 @@ function initials(name: string): string {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  handle(req, res).catch(err => {
+    console.error('leaderboard error:', err);
+    res.status(500).json({ error: 'Error interno' });
+  });
+}
+
+async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
-    return res.status(405).end();
+    res.status(405).end();
+    return;
   }
 
-  const users = await listUsers(); // sorted by points DESC
+  const users = await listUsers();
 
-  // Build ranked entries
   const entries: LeaderboardEntry[] = users.map((u, i) => ({
     rank: i + 1,
     userId: u.id,
@@ -39,7 +46,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     delta: 0,
   }));
 
-  // Barrio aggregation
   const barrioMap = new Map<string, { pts: number; members: number }>();
   for (const u of users) {
     const b = u.barrio || 'Sin barrio';
@@ -61,5 +67,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
-  return res.status(200).json(data);
+  res.status(200).json(data);
 }

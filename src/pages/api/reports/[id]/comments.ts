@@ -4,30 +4,42 @@ import { Role } from '@/types';
 
 const ROLES: Role[] = ['ciudadano', 'municipal'];
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  handle(req, res).catch(err => {
+    console.error('comments error:', err);
+    res.status(500).json({ error: 'Error interno' });
+  });
+}
+
+async function handle(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
   if (typeof id !== 'string') {
-    return res.status(400).json({ error: 'ID no válido' });
+    res.status(400).json({ error: 'ID no válido' });
+    return;
   }
 
   if (req.method === 'GET') {
     const comments = await listComments(id);
-    return res.status(200).json(comments);
+    res.status(200).json(comments);
+    return;
   }
 
   if (req.method === 'POST') {
     const report = await getReport(id);
     if (!report) {
-      return res.status(404).json({ error: 'Reporte no encontrado' });
+      res.status(404).json({ error: 'Reporte no encontrado' });
+      return;
     }
     const b = req.body ?? {};
     if (typeof b.text !== 'string' || b.text.trim() === '' || !ROLES.includes(b.authorRole)) {
-      return res.status(400).json({ error: 'Comentario no válido' });
+      res.status(400).json({ error: 'Comentario no válido' });
+      return;
     }
     const comment = await insertComment(id, b.authorRole as Role, b.text.trim());
-    return res.status(201).json(comment);
+    res.status(201).json(comment);
+    return;
   }
 
   res.setHeader('Allow', ['GET', 'POST']);
-  return res.status(405).end();
+  res.status(405).end();
 }

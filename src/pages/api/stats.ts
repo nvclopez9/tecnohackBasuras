@@ -5,10 +5,18 @@ import { Stats, ReportStatus, IncidentType, ContainerType } from '@/types';
 
 const DAY = 86400000;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  handle(req, res).catch(err => {
+    console.error('stats error:', err);
+    res.status(500).json({ error: 'Error interno' });
+  });
+}
+
+async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
-    return res.status(405).end();
+    res.status(405).end();
+    return;
   }
 
   const reports = await listReports();
@@ -53,5 +61,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     highPriorityPct: reports.length ? Math.round((highPriority / reports.length) * 100) : 0,
     heatmap: reports.map(r => ({ lat: r.lat, lng: r.lng })),
   };
-  return res.status(200).json(stats);
+  res.status(200).json(stats);
 }

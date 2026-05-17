@@ -210,7 +210,7 @@ export default function CuentaPage() {
         </Button>
 
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: T.inkLight }}>
-          EcoChicharro · Cabildo de Tenerife
+          EcoChicharro · Ayuntamiento de Santa Cruz de Tenerife
         </div>
       </div>
     </CitizenLayout>
