@@ -5,13 +5,14 @@ import { Stats, ReportStatus, IncidentType, ContainerType } from '@/types';
 
 const DAY = 86400000;
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
     return res.status(405).end();
   }
 
-  const reports = listReports();
+  const reports = await listReports();
+  const totalBins = await countBins();
 
   const byStatus = {} as Record<ReportStatus, number>;
   STATUSES.forEach(s => (byStatus[s.status] = 0));
@@ -47,7 +48,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     byContainer,
     byArea,
     total: reports.length,
-    totalBins: countBins(),
+    totalBins,
     avgResolutionDays: resolvedCount ? +(resolvedSum / resolvedCount).toFixed(1) : 0,
     highPriorityPct: reports.length ? Math.round((highPriority / reports.length) * 100) : 0,
     heatmap: reports.map(r => ({ lat: r.lat, lng: r.lng })),

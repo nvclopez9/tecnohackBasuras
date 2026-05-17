@@ -59,7 +59,7 @@ Diseño *web-first* de alta densidad, tipo visor de datos institucional.
 | **Next.js** | 13.4 (pages router) | Framework full-stack: front + API en un solo proyecto |
 | **React** | 18.2 | Capa de interfaz |
 | **TypeScript** | 5.2 | Tipado estático en todo el código |
-| **better-sqlite3** | 12.x | Base de datos SQLite embebida, síncrona y sin servidor |
+| **libSQL (Turso)** | 0.17.x | Base de datos SQLite en la nube, vía Turso |
 | **Leaflet** + leaflet.heat | 1.9 | Mapas interactivos y mapa de calor |
 | **next-pwa** | 5.6 | Service worker (Workbox), app instalable y offline-ready |
 | **exifr** / **idb** | — | Lectura de EXIF de fotos y utilidades de almacenamiento en cliente |
@@ -72,7 +72,7 @@ Para un hackathon, Next.js con el **pages router** es la opción más eficiente:
 - **Routing por sistema de archivos**: cada archivo en `src/pages/` es una ruta; no hay configuración de rutas manual.
 - **SSR/SSG integrados** y recarga en caliente, lo que acelera la iteración durante el desarrollo.
 - **Despliegue sencillo** con un único `npm run build` / `npm start`.
-- Combinado con **SQLite vía better-sqlite3** se obtiene una base de datos real sin instalar nada, y con **next-pwa** la app se vuelve instalable en el móvil sin esfuerzo extra.
+- Combinado con **libSQL (Turso)** se obtiene una base de datos SQLite remota, sin gestionar un servidor de base de datos propio.
 
 ---
 
@@ -80,8 +80,12 @@ Para un hackathon, Next.js con el **pages router** es la opción más eficiente:
 
 ```
 tecnohackBasuras/
-├── data/                  # Base de datos SQLite (autogenerada, gitignored)
+├── data/                  # Base de datos SQLite local (gitignored)
 ├── public/                # Estáticos: manifest PWA, iconos, service worker
+├── scripts/               # Scripts de importación y migración
+│   ├── import.js              # Importar datos reales del Cabildo
+│   ├── seed-users.js          # Generar usuarios artificiales por barrio
+│   └── migrate-to-turso.js    # Migrar SQLite local → Turso
 ├── src/
 │   ├── pages/             # Rutas (pages router) y API
 │   │   ├── index.tsx          # Landing: selección de rol
@@ -98,7 +102,7 @@ tecnohackBasuras/
 │   ├── lib/               # Lógica compartida: constantes, tema, prioridad,
 │   │                      #   captura de foto, almacenamiento, pines
 │   ├── server/            # Capa de servidor
-│   │   └── db.ts              # SQLite: esquema, semilla y consultas
+│   │   └── db.ts              # libSQL (Turso): esquema, semilla y consultas
 │   ├── hooks/             # Hooks de datos (useReports, useBins, useMe)
 │   └── types/             # Tipos TypeScript del dominio
 ├── next.config.js         # Config de Next.js + next-pwa
@@ -113,30 +117,30 @@ El **pages router** mapea cada archivo a una ruta:
 - Los archivos `.tsx` bajo `src/pages/` (salvo `api/`) son **páginas** que se renderizan en el navegador. Ej.: `src/pages/ciudadano/index.tsx` → `/ciudadano`. Los corchetes indican rutas dinámicas: `src/pages/ciudadano/incidencias/[id].tsx` → `/ciudadano/incidencias/:id`.
 - Los archivos bajo `src/pages/api/` son **API routes**: funciones que se ejecutan solo en el servidor y exponen un endpoint HTTP. Ej.: `src/pages/api/reports/index.ts` → `GET/POST /api/reports`.
 
-Así, **front y back viven en el mismo proyecto**: la interfaz consume sus propios endpoints de `/api`, que a su vez hablan con SQLite a través de `src/server/db.ts`. La carpeta `data/` (la base de datos) está en `.gitignore` porque se regenera sola.
+Así, **front y back viven en el mismo proyecto**: la interfaz consume sus propios endpoints de `/api`, que a su vez hablan con Turso (libSQL remoto) a través de `src/server/db.ts`.
 
 ---
 
 ## 6. Cómo funciona
 
 ```
-Ciudadano ──reporta (foto + GPS)──► API /api/reports ──► SQLite (data/ecochicharro.db)
-                                                              │
+Ciudadano ──reporta (foto + GPS)──► API /api/reports ──► Turso (libSQL cloud)
+                                                               │
 Personal municipal ──gestiona estado/asignación/comentarios──┘
 ```
 
 1. El ciudadano captura una foto de un contenedor con problema; la app detecta su ubicación por GPS y asigna automáticamente una **prioridad** según el tipo de incidencia (p. ej. *quemado* → alta).
-2. El reporte se envía a `/api/reports` y se guarda en **SQLite**.
+2. El reporte se envía a `/api/reports` y se guarda en **Turso (libSQL)**.
 3. El personal municipal lo ve en el panel: cambia su estado (*pendiente → en proceso → resuelto*), lo asigna a un equipo y añade comentarios de resolución.
 4. El ciudadano ve el estado actualizado y el comentario de resolución en *Mis incidencias*.
 
-**Base de datos autogenerada y sembrada.** En el primer arranque, `src/server/db.ts` crea el archivo `data/ecochicharro.db`, define el esquema y lo siembra con datos de ejemplo de Santa Cruz de Tenerife: **8 contenedores** (uno por cada tipo de residuo), **12 incidencias** en distintos estados y zonas, y comentarios de resolución. No hay que configurar nada.
+**Base de datos remota (Turso).** La aplicación se conecta a una base de datos Turso (libSQL) en la nube. Las credenciales se configuran vía variables de entorno (`TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`). En el primer arranque, `src/server/db.ts` crea el esquema y lo siembra con datos de ejemplo de Santa Cruz de Tenerife, más ~180 usuarios sintéticos y ~70 reportes sintéticos para el análisis temporal.
 
 ---
 
 ## 7. Endpoints de la API
 
-Todos viven en `src/pages/api/` y hablan con SQLite vía `src/server/db.ts`.
+Todos viven en `src/pages/api/` y hablan con Turso (libSQL) vía `src/server/db.ts`.
 
 | Endpoint | Métodos | Función |
 |---|---|---|
@@ -158,10 +162,14 @@ Todos viven en `src/pages/api/` y hablan con SQLite vía `src/server/db.ts`.
 Requisito: **Node.js** instalado (probado con la v24).
 
 ```bash
-# 1. Instalar dependencias
+# 1. Clonar e instalar dependencias
 npm install
 
-# 2. Servidor de desarrollo (recarga en caliente; PWA desactivada)
+# 2. Configurar variables de entorno
+cp .env.local.example .env.local
+# Editar .env.local con tus credenciales de Turso y UploadThing
+
+# 3. Servidor de desarrollo (recarga en caliente; PWA desactivada)
 npm run dev
 ```
 
@@ -175,7 +183,17 @@ npm start
 
 En desarrollo el service worker está deshabilitado a propósito (`disable: NODE_ENV === 'development'` en `next.config.js`); para probar la PWA instalable usa `npm run build` + `npm start`.
 
-La subida de fotos requiere la variable de entorno `UPLOADTHING_SECRET` (UploadThing). Sin ella, los reportes con foto fallan; los reportes sin foto siguen funcionando.
+---
+
+### Variables de entorno
+
+| Variable | Obligatoria | Descripción |
+|---|---|---|
+| `TURSO_DATABASE_URL` | ✅ | URL de la base de datos Turso (ej. `libsql://<db>-<user>.aws-eu-west-1.turso.io`) |
+| `TURSO_AUTH_TOKEN` | ✅ | Token JWT de autenticación de Turso |
+| `UPLOADTHING_TOKEN` | ❌* | Token de UploadThing para subida de fotos |
+
+*Sin UploadThing los reportes sin foto funcionan; los reportes con foto fallan.
 
 ---
 
@@ -184,7 +202,7 @@ La subida de fotos requiere la variable de entorno `UPLOADTHING_SECRET` (UploadT
 Al ser un prototipo de hackathon, hay simplificaciones deliberadas:
 
 - **Sin autenticación real**: el login y el registro son simulados; el rol elegido se guarda en `localStorage` y todos los reportes se asocian a un usuario por defecto (`user-maria`).
-- **Base de datos local**: SQLite en `data/ecochicharro.db`, autogenerada y sembrada en el primer arranque. La carpeta `data/` está en `.gitignore`.
+- **Base de datos remota**: Turso (libSQL) en la nube. La base de datos local `data/ecochicharro.db` se usa solo como respaldo para migración o desarrollo offline.
 - **Geocodificación con límites**: `/api/geocode` usa Nominatim (OpenStreetMap), que limita la frecuencia de peticiones; el endpoint cachea resultados en memoria para mitigarlo.
 - La subida de fotos depende de un servicio externo (UploadThing) y de su clave de entorno.
 
@@ -198,7 +216,7 @@ Líneas de evolución previstas más allá del hackathon:
 - **Roles y permisos municipales** (administrador, supervisor de zona, equipos de campo) con vistas y acciones diferenciadas.
 - **Notificaciones push** al ciudadano cuando su incidencia cambia de estado, y al municipio ante avisos de alta prioridad.
 - **Rutas de recogida optimizadas**: cálculo automático de itinerarios a partir de los puntos calientes y la prioridad de las incidencias.
-- **Migración de base de datos** de SQLite a PostgreSQL/PostGIS para escalar a producción y soportar consultas geoespaciales.
+- **Migración a PostgreSQL/PostGIS** desde Turso para escalar a producción y soportar consultas geoespaciales avanzadas.
 - **App nativa** (o capa nativa sobre la PWA) para mejor acceso a cámara, GPS y notificaciones.
 - **Integración con sistemas del Cabildo de Tenerife** y datos abiertos municipales (callejero oficial, inventario real de contenedores).
 - **Analítica avanzada**: predicción de saturación de contenedores e indicadores de tiempo de resolución por equipo.

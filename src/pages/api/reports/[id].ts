@@ -11,14 +11,14 @@ export const config = {
   api: { bodyParser: { sizeLimit: '8mb' } },
 };
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'ID no válido' });
   }
 
   if (req.method === 'GET') {
-    const report = getReport(id);
+    const report = await getReport(id);
     if (!report) return res.status(404).json({ error: 'No encontrado' });
     return res.status(200).json(report);
   }
@@ -41,7 +41,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       if (typeof b.resolutionNote !== 'string') return res.status(400).json({ error: 'Nota no válida' });
       changes.resolutionNote = b.resolutionNote;
     }
-    const updated = updateReport(id, changes);
+    const updated = await updateReport(id, changes);
     if (!updated) return res.status(404).json({ error: 'No encontrado' });
     return res.status(200).json(updated);
   }
@@ -66,13 +66,13 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       if (typeof b.description !== 'string') return res.status(400).json({ error: 'Descripción no válida' });
       changes.description = b.description;
     }
-    const updated = updateReport(id, changes);
+    const updated = await updateReport(id, changes);
     if (!updated) return res.status(404).json({ error: 'No encontrado' });
     return res.status(200).json(updated);
   }
 
   if (req.method === 'DELETE') {
-    const ok = deleteReport(id);
+    const ok = await deleteReport(id);
     if (!ok) return res.status(404).json({ error: 'No encontrado' });
     return res.status(200).json({ ok: true });
   }

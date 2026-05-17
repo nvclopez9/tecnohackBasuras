@@ -18,13 +18,13 @@ function initials(name: string): string {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
     return res.status(405).end();
   }
 
-  const users = listUsers(); // sorted by points DESC
+  const users = await listUsers(); // sorted by points DESC
 
   // Build ranked entries
   const entries: LeaderboardEntry[] = users.map((u, i) => ({

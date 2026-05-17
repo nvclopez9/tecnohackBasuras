@@ -10,11 +10,11 @@ export const config = {
   api: { bodyParser: { sizeLimit: '8mb' } },
 };
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     const q = req.query;
     const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
-    const reports = listReports({
+    const reports = await listReports({
       status: str(q.status),
       containerType: str(q.containerType),
       incidentType: str(q.incidentType),
@@ -29,7 +29,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (req.method === 'POST') {
     const b = req.body ?? {};
-    // La foto es opcional: los reportes desde una burbuja del mapa no llevan foto.
     const photo = typeof b.photo === 'string' ? b.photo : '';
     const thumbnail = typeof b.thumbnail === 'string' ? b.thumbnail : '';
     if (
@@ -45,7 +44,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     let area = typeof b.area === 'string' ? b.area : '';
     const binId = typeof b.binId === 'string' ? b.binId : '';
     if (binId && (!address || !area)) {
-      const bin = getBin(binId);
+      const bin = await getBin(binId);
       if (bin) {
         address = address || bin.address;
         area = area || bin.area;
@@ -53,7 +52,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     }
     if (!area) area = 'Santa Cruz';
 
-    const report = insertReport({
+    const report = await insertReport({
       userId: DEFAULT_USER_ID,
       binId,
       photo,
