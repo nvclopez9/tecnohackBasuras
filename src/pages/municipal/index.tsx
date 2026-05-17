@@ -213,8 +213,6 @@ export default function MunicipalDashboard() {
                 {(stats.totalBins ?? 0).toLocaleString('es')}
               </div>
             </div>
-=======
->>>>>>> origin/dev
 
             {/* KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
