@@ -5,7 +5,7 @@
  *   node scripts/import.js
  *
  * What it does:
- *  1. Opens data/th_basura_v2.db (read-only) — real Cabildo de Tenerife data (v2)
+ *  1. Opens data/th_basura_v2.db (read-only) — real Ayuntamiento de Santa Cruz de Tenerife data (v2)
  *  2. Opens/creates data/ecochicharro.db — our app DB
  *  3. Creates/migrates schema
  *  4. Clears existing bins and reports (keeps María as default user)

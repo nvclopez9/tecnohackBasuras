@@ -34,7 +34,7 @@ function App() {
       <DesignCanvas key={key} title="EcoChicharro" subtitle="Diseño PWA · App Ciudadano + Panel Municipal">
 
         <DCSection id="brand" title="Sistema visual"
-                   subtitle="Color, tipografía y componentes base (Cabildo de Tenerife · PANTONE 301)">
+                   subtitle="Color, tipografía y componentes base (Ayuntamiento de Santa Cruz de Tenerife · PANTONE 301)">
           <DCArtboard id="brand-tokens" label="Tokens y componentes" width={900} height={520}>
             <BrandSheet/>
           </DCArtboard>

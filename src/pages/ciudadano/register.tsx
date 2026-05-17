@@ -176,7 +176,7 @@ export default function RegisterPage() {
 
         {/* Nota legal */}
         <div style={{ marginTop: 16, fontSize: 11, color: T.inkLight, textAlign: 'center', maxWidth: 320 }}>
-          Al registrarte aceptas los términos del servicio · Cabildo de Tenerife
+          Al registrarte aceptas los términos del servicio · Ayuntamiento de Santa Cruz de Tenerife
         </div>
       </div>
     </>

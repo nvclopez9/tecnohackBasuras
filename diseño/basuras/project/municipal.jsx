@@ -29,7 +29,7 @@ const Topbar = () => (
     </div>
     <div style={{ height: 24, width: 1, background: ECO_TOKENS.border }}/>
     <div style={{ fontSize: 12.5, color: ECO_TOKENS.inkMid }}>
-      Cabildo Insular de Tenerife · <span style={{ color: ECO_TOKENS.ink, fontWeight: 600 }}>Servicios de Limpieza</span>
+      Ayuntamiento de Santa Cruz de Tenerife · <span style={{ color: ECO_TOKENS.ink, fontWeight: 600 }}>Servicios de Limpieza</span>
     </div>
     <div style={{ flex: 1 }}/>
     <div style={{

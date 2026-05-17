@@ -204,7 +204,7 @@ export default function MunicipalDashboard() {
                   {(stats.totalBins ?? 0).toLocaleString('es')} contenedores registrados en el sistema
                 </div>
                 <div style={{ fontSize: 11.5, color: T.inkMid }}>
-                  Datos reales · Cabildo de Tenerife · Santa Cruz de Tenerife
+                  Datos reales · Ayuntamiento de Santa Cruz de Tenerife · Santa Cruz de Tenerife
                 </div>
               </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: T.primary, fontVariantNumeric: 'tabular-nums' }}>

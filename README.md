@@ -4,7 +4,7 @@
 
 EcoChicharro cierra el ciclo entre la ciudadanía que detecta un problema en la vía pública —un contenedor desbordado, roto, quemado o desaparecido— y el personal municipal que gestiona la recogida y el mantenimiento. El nombre juega con *chicharro*, el gentilicio popular de Santa Cruz de Tenerife.
 
-Es un proyecto desarrollado para un hackathon, con identidad visual basada en la paleta institucional del **Cabildo de Tenerife** (azul corporativo `#005A9C`).
+Es un proyecto desarrollado para un hackathon, con identidad visual basada en la paleta institucional del **Ayuntamiento de Santa Cruz de Tenerife** (azul corporativo `#005A9C`).
 
 ---
 
@@ -200,10 +200,10 @@ Líneas de evolución previstas más allá del hackathon:
 - **Rutas de recogida optimizadas**: cálculo automático de itinerarios a partir de los puntos calientes y la prioridad de las incidencias.
 - **Migración de base de datos** de SQLite a PostgreSQL/PostGIS para escalar a producción y soportar consultas geoespaciales.
 - **App nativa** (o capa nativa sobre la PWA) para mejor acceso a cámara, GPS y notificaciones.
-- **Integración con sistemas del Cabildo de Tenerife** y datos abiertos municipales (callejero oficial, inventario real de contenedores).
+- **Integración con sistemas del Ayuntamiento de Santa Cruz de Tenerife** y datos abiertos municipales (callejero oficial, inventario real de contenedores).
 - **Analítica avanzada**: predicción de saturación de contenedores e indicadores de tiempo de resolución por equipo.
 - **Accesibilidad e idiomas**: revisión de contraste y soporte multilingüe.
 
 ---
 
-*EcoChicharro · Hackathon · Santa Cruz de Tenerife · Cabildo de Tenerife*
+*EcoChicharro · Hackathon · Santa Cruz de Tenerife · Ayuntamiento de Santa Cruz de Tenerife*

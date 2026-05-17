@@ -17,7 +17,7 @@ La estética es **institucional, limpia y orientada al dato**, inspirada en los 
 datos gubernamentales (tipo *infoDANA Recuperación*): mucho blanco, líneas finas, sin
 gradientes llamativos ni decoración superflua. El mapa es siempre el protagonista.
 
-La marca se construye alrededor del **azul institucional del Cabildo de Tenerife
+La marca se construye alrededor del **azul institucional del Ayuntamiento de Santa Cruz de Tenerife
 (PANTONE 301)**, implementado como `#005A9C`. El logotipo en la interfaz es un cuadrado
 azul con las iniciales "Ec" en blanco (radio 6 px) — ver `MunicipalShell.tsx` (Topbar).
 
@@ -274,7 +274,7 @@ o `primaryDark` si activo), con borde blanco de 3 px y `marginTop: -16` para sob
 ### Layout del panel municipal (web-first)
 `MunicipalShell.tsx`: columna fija a pantalla completa.
 - **Topbar** de 56 px: logo "Ec", título "EcoChicharro" + sobre-título "Panel Municipal",
-  divisor, texto institucional ("Cabildo Insular de Tenerife · Servicios de Limpieza"),
+  divisor, texto institucional ("Ayuntamiento de Santa Cruz de Tenerife · Servicios de Limpieza"),
   buscador global y avatar de usuario. En móvil se reduce y aparece un botón de menú.
 - **Sidebar** izquierda de 270 px: navegación (Cuadro de mandos, Mapa analítico,
   Incidencias) + filtros colapsables (tipo de contenedor, estado, prioridad, zona) con
