@@ -52,7 +52,7 @@ export function Icon({ name, size = 18, color = 'currentColor', stroke = 1.7 }: 
     case 'bell': return <svg {...p}><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4Z" /><path d="M10 21h4" /></svg>;
     case 'globe': return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" /></svg>;
     case 'help': return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4" /><circle cx="12" cy="17" r=".6" fill="currentColor" /></svg>;
-    case 'logout': return <svg {...p}><path d="M14 4h4v16h-4M4 12h12M11 8l-4 4 4 4" /></svg>;
+    case 'logout': return <svg {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>;
     case 'route': return <svg {...p}><circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M6 8v3a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4" /></svg>;
     case 'leaf': return <svg {...p}><path d="M20 4c-9 0-15 6-15 13 0 1.5.5 3 1 4 0-9 7-13 14-13Z" /><path d="M5 21c5-1 9-4 12-9" /></svg>;
     case 'bottle': return <svg {...p}><path d="M10 2h4v3l1 2v13a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V7l1-2Z" /></svg>;
@@ -82,14 +82,11 @@ export function Icon({ name, size = 18, color = 'currentColor', stroke = 1.7 }: 
 }
 
 const CONTAINER_ICON: Record<ContainerType, IconName> = {
-  organico: 'leaf',
   envases: 'bottle',
   papel: 'news',
   vidrio: 'bottle',
-  resto: 'bag',
   ropa: 'shirt',
   aceite: 'drop',
-  baterias: 'battery',
   papelera: 'bag',
   mixto: 'bag',
   electrico: 'flash',

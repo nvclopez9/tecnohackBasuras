@@ -1,12 +1,9 @@
 export type ContainerType =
-  | 'organico'
   | 'envases'
   | 'papel'
   | 'vidrio'
-  | 'resto'
   | 'ropa'
   | 'aceite'
-  | 'baterias'
   | 'papelera'
   | 'mixto'
   | 'electrico';

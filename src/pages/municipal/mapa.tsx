@@ -1,8 +1,8 @@
 import dynamic from 'next/dynamic';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import MunicipalShell, { MuniFilters, EMPTY_FILTERS, applyFilters } from '@/components/municipal/MunicipalShell';
 import DetailPanel from '@/components/municipal/DetailPanel';
-import { MapBtn, Badge, Button } from '@/components/ui/primitives';
+import { MapBtn, Badge } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { useReports } from '@/hooks/useReports';
 import { useBins } from '@/hooks/useBins';
@@ -10,36 +10,26 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { THEME } from '@/lib/theme';
 import { CONTAINERS, incidentMeta, statusMeta } from '@/lib/constants';
 import { Report } from '@/types';
-import type { ZoneCircle } from '@/components/MapView';
-import { TRUCK_ROUTES, TruckRoute, routeEfficiency } from '@/lib/truckRoutes';
 
 const T = THEME;
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
-type MapLayer = 'pines' | 'heatmap' | 'zonas' | 'rutas';
+type MapLayer = 'pines' | 'heatmap' | 'calles';
 
-/**
- * Agrupa las incidencias en celdas espaciales (~165 m) y devuelve círculos
- * coloreados por intensidad: verde (baja) → ámbar → rojo (alta). Aproxima
- * las "calles con más tráfico de incidencias".
- */
-function zonesFromReports(reports: Report[]): ZoneCircle[] {
-  const CELL = 0.0016;
-  const cells = new Map<string, { lat: number; lng: number; n: number }>();
-  reports.forEach((r) => {
-    const key = `${Math.round(r.lat / CELL)}:${Math.round(r.lng / CELL)}`;
-    const c = cells.get(key);
-    if (c) { c.lat += r.lat; c.lng += r.lng; c.n += 1; }
-    else cells.set(key, { lat: r.lat, lng: r.lng, n: 1 });
-  });
-  const arr = [...cells.values()];
-  const max = Math.max(1, ...arr.map((c) => c.n));
-  return arr.map((c) => {
-    const ratio = c.n / max;
-    const color = ratio > 0.66 ? T.danger : ratio > 0.33 ? T.warn : T.success;
-    return { lat: c.lat / c.n, lng: c.lng / c.n, radius: 70 + ratio * 140, color };
-  });
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+const STREETS_SHIMMER = `
+@keyframes streetsShimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+`;
 
 export default function MunicipalMapa() {
   const { reports, mergeReport } = useReports({ poll: true });
@@ -48,11 +38,45 @@ export default function MunicipalMapa() {
   const [filters, setFilters] = useState<MuniFilters>(EMPTY_FILTERS);
   const [layer, setLayer] = useState<MapLayer>('pines');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [routesSheetOpen, setRoutesSheetOpen] = useState(false);
+  const [showBinsOverlay, setShowBinsOverlay] = useState(false);
+
+  const [streetData, setStreetData] = useState<{ id: string; points: { lat: number; lng: number }[] }[]>([]);
+  const [streetsLoading, setStreetsLoading] = useState(false);
+
+  useEffect(() => {
+    if (layer !== 'calles' || streetData.length > 0 || streetsLoading) return;
+    setStreetsLoading(true);
+    fetch('/api/streets')
+      .then(r => r.json())
+      .then(data => { setStreetData(Array.isArray(data) ? data : []); })
+      .catch(() => {})
+      .finally(() => setStreetsLoading(false));
+  }, [layer, streetData.length, streetsLoading]);
 
   const filtered = useMemo(() => applyFilters(reports, filters), [reports, filters]);
   const selected = filtered.find((r) => r.id === selectedId) ?? reports.find((r) => r.id === selectedId) ?? null;
-  const zoneCircles = useMemo(() => (layer === 'zonas' ? zonesFromReports(filtered) : []), [layer, filtered]);
+
+  const streetLines = useMemo(() => {
+    if (layer !== 'calles' || streetData.length === 0) return [];
+    const NEAR = 35;
+    const lines = streetData.map(street => {
+      let count = 0;
+      filtered.forEach(r => {
+        const near = street.points.some(p => haversineM(r.lat, r.lng, p.lat, p.lng) < NEAR);
+        if (near) count++;
+      });
+      return { street, count };
+    });
+    const max = Math.max(1, ...lines.map(l => l.count));
+    return lines
+      .filter(l => l.count > 0)
+      .map(l => {
+        const ratio = l.count / max;
+        const color = ratio > 0.66 ? T.danger : ratio > 0.33 ? T.warn : T.success;
+        const weight = ratio > 0.66 ? 5 : ratio > 0.33 ? 4 : 3;
+        return { points: l.street.points, color, weight };
+      });
+  }, [layer, streetData, filtered]);
 
   return (
     <MunicipalShell
@@ -62,48 +86,75 @@ export default function MunicipalMapa() {
       filters={filters}
       onFilters={setFilters}
     >
+      <style>{STREETS_SHIMMER}</style>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* MAP */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0 }}>
           <MapView
-            reports={layer === 'rutas' || layer === 'zonas' ? [] : filtered}
-            bins={layer === 'pines' ? bins : []}
+            reports={layer === 'calles' ? [] : filtered}
+            bins={showBinsOverlay ? bins : []}
             showHeatmap={layer === 'heatmap'}
-            zoneCircles={zoneCircles}
-            truckRoutes={layer === 'rutas' ? TRUCK_ROUTES : []}
+            zoneCircles={[]}
+            streetLines={streetLines}
             selectedId={selectedId}
             onReportClick={(r) => setSelectedId(r.id)}
             variant="voyager"
           />
 
-          {/* layer toggle */}
+          {/* Streets loading progress bar */}
+          {streetsLoading && (
+            <div style={{
+              position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 600, background: 'rgba(26,26,46,0.92)',
+              borderRadius: 10, padding: '8px 14px', minWidth: 240, maxWidth: 320,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>📡</span> Descargando red viaria de Santa Cruz…
+              </div>
+              <div style={{
+                height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)',
+                overflow: 'hidden', position: 'relative',
+              }}>
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%)',
+                  animation: 'streetsShimmer 1.5s linear infinite',
+                }} />
+              </div>
+            </div>
+          )}
+
+          {/* Layer selector */}
           <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6, zIndex: 500, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <MapBtn icon={<Icon name="pin" size={13} />} label="Pines" active={layer === 'pines'} onClick={() => setLayer('pines')} />
             <MapBtn icon={<Icon name="flame" size={13} />} label="Heatmap" active={layer === 'heatmap'} onClick={() => setLayer('heatmap')} />
-            <MapBtn icon={<Icon name="cluster" size={13} />} label="Zonas" active={layer === 'zonas'} onClick={() => setLayer('zonas')} />
-            <MapBtn icon={<Icon name="route" size={13} />} label="Rutas" active={layer === 'rutas'} onClick={() => setLayer('rutas')} />
+            <MapBtn icon={<Icon name="route" size={13} />} label="Calles" active={layer === 'calles'} onClick={() => setLayer('calles')} />
           </div>
 
-          {/* legend */}
+          {/* Bins toggle FAB */}
+          <button
+            onClick={() => setShowBinsOverlay(v => !v)}
+            title={showBinsOverlay ? 'Ocultar contenedores' : 'Mostrar contenedores'}
+            style={{
+              position: 'absolute', bottom: 16, right: 16, zIndex: 500,
+              width: 44, height: 44, borderRadius: 999,
+              background: showBinsOverlay ? T.primary : 'rgba(26,26,46,0.92)',
+              border: `2px solid ${showBinsOverlay ? T.primary : 'rgba(255,255,255,0.18)'}`,
+              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
+              transition: 'background 0.2s, border-color 0.2s',
+            }}
+          >
+            <Icon name="pin" size={18} color="#fff" />
+          </button>
+
+          {/* Legend */}
           <div style={{
             position: 'absolute', bottom: 16, left: 16, zIndex: 500,
             background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 12px', minWidth: 190,
           }}>
-            {layer === 'rutas' ? (
-              <>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
-                  Rutas de camiones
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {TRUCK_ROUTES.map((r) => (
-                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: T.ink }}>
-                      <span style={{ width: 20, height: 3, borderRadius: 2, background: r.color, flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600 }}>{r.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : layer === 'heatmap' ? (
+            {layer === 'heatmap' ? (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
                   Densidad de incidencias
@@ -113,23 +164,26 @@ export default function MunicipalMapa() {
                   <span>Baja</span><span>Alta</span>
                 </div>
               </div>
-            ) : layer === 'zonas' ? (
+            ) : layer === 'calles' ? (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
-                  Intensidad por zona
+                  {streetsLoading ? 'Cargando red viaria…' : 'Intensidad en calles'}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {[
-                    { c: T.success, l: 'Tráfico bajo de incidencias' },
-                    { c: T.warn, l: 'Tráfico medio' },
-                    { c: T.danger, l: 'Tráfico alto · zona caliente' },
-                  ].map((x) => (
+                    { c: T.success, l: 'Baja densidad' },
+                    { c: T.warn, l: 'Densidad media' },
+                    { c: T.danger, l: 'Alta densidad' },
+                  ].map(x => (
                     <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: T.ink }}>
-                      <span style={{ width: 12, height: 12, borderRadius: 999, background: x.c, opacity: 0.6, border: `1.5px solid ${x.c}`, flexShrink: 0 }} />
+                      <span style={{ width: 22, height: 4, borderRadius: 2, background: x.c, flexShrink: 0 }} />
                       {x.l}
                     </div>
                   ))}
                 </div>
+                {streetLines.length === 0 && !streetsLoading && (
+                  <div style={{ fontSize: 10, color: T.inkMid, marginTop: 6 }}>Sin incidencias en calles</div>
+                )}
               </div>
             ) : (
               <>
@@ -148,44 +202,20 @@ export default function MunicipalMapa() {
             )}
           </div>
 
-          {/* count pill — hide on rutas */}
-          {layer !== 'rutas' && (
-            <div style={{
-              position: 'absolute', top: 16, left: 16, zIndex: 500,
-              background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8,
-              padding: '8px 12px', fontSize: 12.5, fontWeight: 600, color: T.ink,
-            }}>
-              {filtered.length} incidencia{filtered.length !== 1 ? 's' : ''}
-            </div>
-          )}
-
-          {/* FAB "Ver rutas" en móvil cuando layer === rutas */}
-          {isMobile && layer === 'rutas' && (
-            <button
-              onClick={() => setRoutesSheetOpen(true)}
-              style={{
-                position: 'absolute', bottom: 80, right: 16, zIndex: 600,
-                background: T.primary, color: '#fff',
-                border: 'none', borderRadius: 28,
-                padding: '12px 18px',
-                fontSize: 14, fontWeight: 700,
-                display: 'flex', alignItems: 'center', gap: 8,
-                boxShadow: '0 4px 16px rgba(0,0,0,.22)',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              <Icon name="route" size={16} />
-              Ver rutas
-            </button>
-          )}
+          {/* Incidences count pill */}
+          <div style={{
+            position: 'absolute', top: 16, left: 16, zIndex: 500,
+            background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8,
+            padding: '8px 12px', fontSize: 12.5, fontWeight: 600, color: T.ink,
+          }}>
+            {filtered.length} incidencia{filtered.length !== 1 ? 's' : ''}
+          </div>
         </div>
 
-        {/* RIGHT PANEL — escritorio */}
+        {/* RIGHT PANEL — desktop */}
         {!isMobile && (
           <div style={{ width: 360, flex: '0 0 360px', background: '#fff', borderLeft: `1px solid ${T.border}`, overflow: 'hidden' }}>
-            {layer === 'rutas' ? (
-              <TruckRoutesPanel />
-            ) : selected ? (
+            {selected ? (
               <DetailPanel
                 report={selected}
                 onClose={() => setSelectedId(null)}
@@ -198,8 +228,8 @@ export default function MunicipalMapa() {
         )}
       </div>
 
-      {/* DETALLE — overlay en móvil (incidencias) */}
-      {isMobile && selected && layer !== 'rutas' && (
+      {/* DETAIL overlay — mobile */}
+      {isMobile && selected && (
         <div
           onClick={() => setSelectedId(null)}
           style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'flex-end' }}
@@ -219,171 +249,8 @@ export default function MunicipalMapa() {
           </div>
         </div>
       )}
-
-      {/* RUTAS bottom-sheet — móvil */}
-      {isMobile && routesSheetOpen && (
-        <div
-          onClick={() => setRoutesSheetOpen(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'flex-end' }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%', maxHeight: '85%', background: '#fff',
-              borderRadius: '16px 16px 0 0', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-            }}
-          >
-            {/* drag handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-              <span style={{ width: 36, height: 4, borderRadius: 2, background: T.border }} />
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              <TruckRoutesPanel />
-            </div>
-          </div>
-        </div>
-      )}
     </MunicipalShell>
   );
-}
-
-// ---------------------------------------------------------------------------
-// TruckRoutesPanel
-// ---------------------------------------------------------------------------
-
-function TruckRoutesPanel() {
-  const totalStops = TRUCK_ROUTES.reduce((s, r) => s + r.totalStops, 0);
-  const completedStops = TRUCK_ROUTES.reduce((s, r) => s + r.completedStops, 0);
-  const totalKm = TRUCK_ROUTES.reduce((s, r) => s + r.distanceKm, 0);
-  const plannedKm = TRUCK_ROUTES.reduce((s, r) => s + r.plannedDistanceKm, 0);
-  const avgEfficiency = totalKm > 0 ? Math.round((plannedKm / totalKm) * 100) : 0;
-
-  return (
-    <div className="thin-scroll" style={{ height: '100%', overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Header */}
-      <div style={{ paddingBottom: 10, borderBottom: `1px solid ${T.borderSoft}` }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>Rutas de recogida · Hoy</div>
-        <div style={{ fontSize: 11.5, color: T.inkMid, marginTop: 2 }}>Eficiencia vs. planificación</div>
-      </div>
-
-      {/* Route cards */}
-      {TRUCK_ROUTES.map((route) => (
-        <RouteCard key={route.id} route={route} />
-      ))}
-
-      {/* Summary card */}
-      <div style={{
-        background: T.primaryMist, border: `1px solid ${T.primaryTint}`,
-        borderRadius: 10, padding: '14px 16px', marginTop: 4,
-      }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: T.primary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-          Resumen global
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
-          <SummaryKPI label="Paradas" value={`${completedStops}/${totalStops}`} />
-          <SummaryKPI label="Km recorridos" value={`${totalKm.toFixed(1)}km`} />
-          <SummaryKPI label="Eficiencia" value={totalKm > 0 ? `${avgEfficiency}%` : '—'} accent={efficiencyColor(avgEfficiency)} />
-        </div>
-        <Button kind="ghost" full icon={<Icon name="route" size={14} />}>
-          Proponer nueva ruta
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function RouteCard({ route }: { route: TruckRoute }) {
-  const eff = routeEfficiency(route);
-  const delta = route.distanceKm > 0 ? route.distanceKm - route.plannedDistanceKm : 0;
-  const deltaSign = delta > 0 ? '+' : '';
-
-  const statusColor = route.status === 'completada' ? T.success : route.status === 'en_curso' ? T.primary : T.inkMid;
-  const statusLabel = route.status === 'completada' ? 'Completada' : route.status === 'en_curso' ? 'En curso' : 'Planificada';
-
-  return (
-    <div style={{
-      background: '#fff', border: `1px solid ${T.border}`,
-      borderRadius: 10, overflow: 'hidden',
-      borderLeft: `3px solid ${route.color}`,
-    }}>
-      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {/* Name + status */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>{route.name}</div>
-          <Badge color={statusColor} label={statusLabel} size="sm" />
-        </div>
-
-        {/* Driver + truck */}
-        <div style={{ fontSize: 11.5, color: T.inkMid }}>
-          {route.driver} · {route.truck}
-        </div>
-
-        {/* Metrics */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          <MetricCell label="Paradas" value={`${route.completedStops}/${route.totalStops}`} />
-          <MetricCell
-            label="Distancia"
-            value={route.distanceKm > 0
-              ? `${route.distanceKm}km / ${route.plannedDistanceKm}km plan.`
-              : `— / ${route.plannedDistanceKm}km plan.`}
-          />
-        </div>
-
-        {/* Efficiency bar */}
-        {route.distanceKm > 0 && (
-          <div>
-            <div style={{ height: 6, borderRadius: 3, background: T.borderSoft, overflow: 'hidden', marginBottom: 4 }}>
-              <div style={{
-                height: '100%',
-                width: `${Math.min(eff, 100)}%`,
-                background: efficiencyColor(eff),
-                borderRadius: 3,
-                transition: 'width .4s ease',
-              }} />
-            </div>
-            <div style={{ fontSize: 11, color: T.inkMid }}>
-              <span style={{ fontWeight: 700, color: efficiencyColor(eff) }}>{eff}% eficiencia</span>
-              {' · '}
-              {deltaSign}{delta.toFixed(1)}km vs. planificado
-            </div>
-          </div>
-        )}
-        {route.distanceKm === 0 && (
-          <div style={{ fontSize: 11, color: T.inkMid, fontStyle: 'italic' }}>
-            Pendiente de inicio · {route.startTime}h
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MetricCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ background: T.appBg, borderRadius: 6, padding: '6px 8px' }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: T.ink }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function SummaryKPI({ label, value, accent }: { label: string; value: string; accent?: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: T.inkMid, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: accent ?? T.ink, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-    </div>
-  );
-}
-
-function efficiencyColor(eff: number): string {
-  if (eff >= 95) return T.success;
-  if (eff >= 85) return T.warn;
-  return T.danger;
 }
 
 // ---------------------------------------------------------------------------

@@ -46,17 +46,17 @@ export default function BottomNav() {
     >
       {TABS.map((t) => {
         const isActive = active === t.id;
-        const iconColor = '#ffffff';
-        const textColor = isActive ? '#ffffff' : 'rgba(255,255,255,0.78)';
-        const iconSize = t.center ? (isActive ? 28 : 24) : isActive ? 26 : 22;
+        const textColor = isActive ? '#ffffff' : 'rgba(255,255,255,0.72)';
+        const iconSize = t.center ? (isActive ? 28 : 24) : isActive ? 24 : 22;
         return (
           <button
             key={t.id}
             onClick={() => router.push(t.href)}
             style={{
               flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 4, padding: '10px 4px 6px', background: 'transparent', border: 'none',
-              cursor: 'pointer', color: textColor,
+              gap: 3, padding: '10px 4px 4px', background: 'transparent', border: 'none',
+              cursor: 'pointer', color: textColor, position: 'relative',
+              transition: 'opacity 0.15s',
             }}
           >
             {t.center ? (
@@ -67,14 +67,35 @@ export default function BottomNav() {
                   color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   marginTop: -18, boxShadow: '0 6px 18px rgba(0,60,120,0.28)',
                   border: '3px solid rgba(255,255,255,0.9)',
+                  transition: 'transform 0.2s ease, background 0.2s',
+                  transform: isActive ? 'translateY(-1px) scale(1.04)' : 'none',
                 }}
               >
-                <Icon name={t.icon} size={iconSize} color={iconColor} />
+                <Icon name={t.icon} size={iconSize} color="#fff" />
               </span>
             ) : (
-              <Icon name={t.icon} size={iconSize} color={iconColor} />
+              <span style={{
+                position: 'relative',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 28,
+                transition: 'transform 0.2s ease',
+                transform: isActive ? 'translateY(-2px)' : 'none',
+              }}>
+                {/* Active pill background */}
+                {isActive && (
+                  <span style={{
+                    position: 'absolute', inset: 0,
+                    borderRadius: 14, background: 'rgba(255,255,255,0.18)',
+                  }} />
+                )}
+                <Icon name={t.icon} size={iconSize} color="#fff" />
+              </span>
             )}
-            <span style={{ fontSize: 10.5, fontWeight: isActive ? 600 : 500, color: textColor, marginTop: t.center ? -4 : 0 }}>
+            <span style={{
+              fontSize: 10.5, fontWeight: isActive ? 700 : 500,
+              color: textColor, marginTop: t.center ? -4 : 0,
+              transition: 'font-weight 0.15s',
+            }}>
               {t.label}
             </span>
           </button>

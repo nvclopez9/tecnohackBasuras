@@ -3,7 +3,6 @@ import type { Map as LMap, Marker, Polyline, MarkerCluster } from 'leaflet';
 import { Bin, Report, ContainerType } from '@/types';
 import { SC_TENERIFE } from '@/lib/theme';
 import { pinHtml } from '@/lib/pin';
-import { TruckRoute } from '@/lib/truckRoutes';
 import { CONTAINERS } from '@/lib/constants';
 
 export interface RoutePoint { lat: number; lng: number; id: string; }
@@ -27,13 +26,13 @@ interface Props {
   showHeatmap?: boolean;
   containerFilter?: Set<ContainerType> | null;
   variant?: MapVariant;
-  truckRoutes?: TruckRoute[];
   routePoints?: RoutePoint[];
   minZoom?: number;
   maxZoom?: number;
   flyTo?: FlyTo | null;
   userLocation?: LatLng | null;
   zoneCircles?: ZoneCircle[];
+  streetLines?: { points: LatLng[]; color: string; weight: number }[];
 }
 
 const TILES: Record<MapVariant, string> = {
@@ -60,13 +59,13 @@ export default function MapView({
   showHeatmap = false,
   containerFilter = null,
   variant = 'light',
-  truckRoutes = [],
   routePoints = [],
   minZoom = 12,
   maxZoom = 19,
   flyTo,
   userLocation = null,
   zoneCircles = [],
+  streetLines = [],
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
@@ -74,9 +73,6 @@ export default function MapView({
   const reportMarkers = useRef<Map<string, Marker>>(new Map());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const heatRef = useRef<any>(null);
-  // truck route layers
-  const routePolylines = useRef<Polyline[]>([]);
-  const routeMarkers = useRef<Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
 
   // init map
@@ -120,9 +116,6 @@ export default function MapView({
       mapRef.current = null;
       binMarkers.current.clear();
       reportMarkers.current.clear();
-      // clean truck route layers
-      routePolylines.current = [];
-      routeMarkers.current = [];
       setMapReady(false);
     };
   }, [variant]);
@@ -143,6 +136,8 @@ export default function MapView({
   const userLocMarker = useRef<Marker | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const zoneCirclesRef = useRef<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const streetLinesRef = useRef<any[]>([]);
 
   // bin markers — siempre agrupados con leaflet.markercluster para evitar
   // el solapamiento caótico de pines. El pin seleccionado se saca del clúster
@@ -315,7 +310,14 @@ export default function MapView({
             color: '#005A9C', weight: 5, opacity: 0.85,
           }).addTo(map);
         })
-        .catch(() => {});
+        .catch(() => {
+          if (cancelled || !mapRef.current) return;
+          // Fallback: línea recta discontinua entre paradas
+          const latlngs = routePoints.map(p => [p.lat, p.lng] as [number, number]);
+          userPolyRef.current = L.polyline(latlngs, {
+            color: '#005A9C', weight: 3, opacity: 0.55, dashArray: '8,6',
+          }).addTo(mapRef.current!);
+        });
 
       routePoints.forEach((p, i) => {
         const size = 22;
@@ -327,69 +329,6 @@ export default function MapView({
     });
     return () => { cancelled = true; };
   }, [routePoints, mapReady]);
-
-  // truck routes — polylines + stop markers
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    import('leaflet').then((L) => {
-      const map = mapRef.current!;
-
-      // Remove previous route layers
-      routePolylines.current.forEach((p) => p.remove());
-      routePolylines.current = [];
-      routeMarkers.current.forEach((m) => m.remove());
-      routeMarkers.current = [];
-
-      if (!truckRoutes || truckRoutes.length === 0) return;
-
-      truckRoutes.forEach((route) => {
-        const latlngs = route.stops.map((s) => [s.lat, s.lng] as [number, number]);
-
-        // Polyline
-        const polyline = L.polyline(latlngs, {
-          color: route.color,
-          weight: 4,
-          opacity: 0.8,
-          dashArray: route.status === 'planificada' ? '8,6' : undefined,
-        }).addTo(map);
-        routePolylines.current.push(polyline);
-
-        // Stop markers
-        route.stops.forEach((stop, idx) => {
-          const isCompleted = idx < route.completedStops;
-          const size = 14;
-          const html = isCompleted
-            ? `<div style="
-                width:${size}px;height:${size}px;border-radius:50%;
-                background:${route.color};
-                border:2px solid #fff;
-                box-shadow:0 1px 4px rgba(0,0,0,.3);
-              "></div>`
-            : `<div style="
-                width:${size}px;height:${size}px;border-radius:50%;
-                background:#fff;
-                border:2.5px solid ${route.color};
-                box-shadow:0 1px 4px rgba(0,0,0,.2);
-              "></div>`;
-
-          const icon = L.divIcon({
-            className: '',
-            html,
-            iconSize: [size, size],
-            iconAnchor: [size / 2, size / 2],
-          });
-
-          const marker = L.marker([stop.lat, stop.lng], { icon })
-            .addTo(map)
-            .bindTooltip(
-              `<strong>${stop.address}</strong><br>${stop.containerType} · ${stop.visitedAt}`,
-              { direction: 'top', offset: [0, -8] }
-            );
-          routeMarkers.current.push(marker);
-        });
-      });
-    });
-  }, [truckRoutes, mapReady]);
 
   // marcador "mi ubicación" — punto azul con halo
   useEffect(() => {
@@ -426,6 +365,26 @@ export default function MapView({
       });
     });
   }, [zoneCircles, mapReady]);
+
+  // capa analítica: calles pintadas por densidad de incidencias
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    import('leaflet').then((L) => {
+      const map = mapRef.current!;
+      streetLinesRef.current.forEach(p => p.remove());
+      streetLinesRef.current = [];
+      streetLines.forEach(sl => {
+        const latlngs = sl.points.map(p => [p.lat, p.lng] as [number, number]);
+        if (latlngs.length < 2) return;
+        const poly = L.polyline(latlngs, {
+          color: sl.color,
+          weight: sl.weight,
+          opacity: 0.72,
+        }).addTo(map);
+        streetLinesRef.current.push(poly);
+      });
+    });
+  }, [streetLines, mapReady]);
 
   return (
     <div

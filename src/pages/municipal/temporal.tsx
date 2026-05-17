@@ -54,6 +54,15 @@ export default function MunicipalTemporal() {
   const currentCount = hourCounts[hour];
   const net = loadState(currentCount / maxHour);
 
+  // Peak hour and best (quietest) hour for the insight line
+  const peakH = hourCounts.indexOf(Math.max(...hourCounts));
+  const bestH = (() => {
+    // Prefer hours that actually have the least reports; break ties towards daytime
+    let minV = Infinity; let minH = 4;
+    hourCounts.forEach((v, h) => { if (v < minV) { minV = v; minH = h; } });
+    return minH;
+  })();
+
   // Tipos de contenedor con más incidencias en la hora seleccionada.
   const typesRanked = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -103,17 +112,73 @@ export default function MunicipalTemporal() {
               </div>
             </div>
 
+            {/* ── ACTIVIDAD PANEL (expanded) ── */}
             <div style={{
-              background: net.color + '18', border: `1.5px solid ${net.color}`,
-              borderRadius: 10, padding: '10px 14px', flex: '0 0 auto',
-              boxShadow: '0 2px 8px rgba(0,0,0,.08)',
+              background: 'rgba(22, 22, 46, 0.90)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              border: `1.5px solid ${net.color}55`,
+              borderRadius: 12, padding: '12px 14px',
+              flex: '0 0 220px', width: 220,
+              boxShadow: `0 4px 18px rgba(0,0,0,.22), 0 0 0 1px ${net.color}22`,
+              transition: 'border-color 0.4s, box-shadow 0.4s',
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: net.color, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Actividad
+              {/* State badge row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{
+                  width: 28, height: 28, borderRadius: 7,
+                  background: net.color + '25',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name="clock" size={15} color={net.color} />
+                </span>
+                <div>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: 'rgba(255,255,255,.55)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                    Actividad
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: net.color, lineHeight: 1.1 }}>
+                    {net.label}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }} />
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,.45)', textAlign: 'right', lineHeight: 1.3 }}>
+                  {fmt2(hour)}:00<br />
+                  <span style={{ color: 'rgba(255,255,255,.3)' }}>{currentCount} rep.</span>
+                </div>
               </div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: net.color }}>{net.label}</div>
-              <div style={{ fontSize: 11, color: net.color, fontWeight: 600 }}>
-                {currentCount} incidencia{currentCount !== 1 ? 's' : ''} reportada{currentCount !== 1 ? 's' : ''}
+
+              {/* Mini sparkline — 24 bars */}
+              <div style={{
+                display: 'flex', alignItems: 'flex-end', gap: 2, height: 32,
+                marginBottom: 8, paddingBottom: 2,
+              }}>
+                {hourCounts.map((v, h) => {
+                  const barH = Math.round((v / maxHour) * 28) + 2;
+                  const isSelected = h === hour;
+                  const isPeak = h === peakH && v > 0;
+                  const barColor = isSelected ? '#E8A317' : isPeak ? net.color : 'rgba(255,255,255,.28)';
+                  return (
+                    <button
+                      key={h}
+                      onClick={() => setHour(h)}
+                      title={`${fmt2(h)}:00 — ${v}`}
+                      style={{
+                        flex: 1, height: barH, borderRadius: 2, border: 'none',
+                        background: barColor, cursor: 'pointer', padding: 0,
+                        transition: 'height .15s, background .2s',
+                        outline: isSelected ? `1.5px solid #E8A317` : 'none',
+                        outlineOffset: 1,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Insight line */}
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.5)', lineHeight: 1.4 }}>
+                Pico <span style={{ color: net.color, fontWeight: 700 }}>{fmt2(peakH)}:00</span>
+                {' · '}
+                Menor <span style={{ color: T.success, fontWeight: 700 }}>{fmt2(bestH)}:00</span>
               </div>
             </div>
 

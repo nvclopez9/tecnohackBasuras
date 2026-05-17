@@ -13,14 +13,11 @@ export interface ContainerMeta {
 }
 
 export const CONTAINERS: ContainerMeta[] = [
-  { type: 'organico', label: 'Orgánico', color: '#8C5A2B', icon: 'leaf' },
   { type: 'envases', label: 'Envases', color: '#F2B100', icon: 'bottle' },
   { type: 'papel', label: 'Papel', color: '#1F6FB2', icon: 'news' },
   { type: 'vidrio', label: 'Vidrio', color: '#2E8B57', icon: 'bottle' },
-  { type: 'resto', label: 'Resto', color: '#5C6670', icon: 'bag' },
   { type: 'ropa', label: 'Ropa', color: '#E07A2C', icon: 'shirt' },
   { type: 'aceite', label: 'Aceite', color: '#C99700', icon: 'drop' },
-  { type: 'baterias', label: 'Baterías', color: '#A4243B', icon: 'battery' },
   { type: 'papelera', label: 'Papelera', color: '#607D8B', icon: 'bag' },
   { type: 'mixto', label: 'Restos', color: '#795548', icon: 'bag' },
   { type: 'electrico', label: 'Eléctrico / RAEE', color: '#FFA000', icon: 'flash' },
@@ -76,7 +73,7 @@ export const TEAMS = [
 ];
 
 export function containerMeta(type: ContainerType): ContainerMeta {
-  return CONTAINERS.find(c => c.type === type) ?? CONTAINERS[4];
+  return CONTAINERS.find(c => c.type === type) ?? CONTAINERS[0];
 }
 
 export function incidentMeta(type: IncidentType): IncidentMeta {
