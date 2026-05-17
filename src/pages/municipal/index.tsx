@@ -192,7 +192,7 @@ export default function MunicipalDashboard() {
           <div style={{ color: T.inkMid, fontSize: 13 }}>Cargando datos…</div>
         ) : (
           <>
-<<<<<<< HEAD
+
             {/* Real data banner */}
             <div style={{
               background: `linear-gradient(135deg, ${T.primary}10 0%, ${T.primarySky}18 100%)`,
