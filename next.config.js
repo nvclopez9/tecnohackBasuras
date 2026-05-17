@@ -4,9 +4,12 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
   buildExcludes: [/middleware-manifest\.json$/],
-  // El backend (SQLite) requiere red; no se cachean rutas /api.
-  // Sí se cachea el shell de la app (estáticos, fuentes, imágenes) para
-  // arranque rápido y resiliencia ante red inestable.
+  // Estrategia de caché:
+  //   - Estáticos (JS, CSS, fuentes, imágenes) → CacheFirst
+  //   - Páginas → NetworkFirst (red, cae a caché si offline)
+  //   - API → StaleWhileRevalidate (respuesta inmediata desde caché,
+  //     actualiza en segundo plano). Así la app carga datos al instante
+  //     incluso antes del login, y sigue funcionando offline.
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
@@ -26,14 +29,14 @@ const withPWA = require('next-pwa')({
     },
     {
       urlPattern: /\.(?:js|css|woff2?|png|jpg|jpeg|svg|gif|webp|ico)$/i,
-      handler: 'StaleWhileRevalidate',
+      handler: 'CacheFirst',
       options: {
         cacheName: 'static-assets',
         expiration: { maxEntries: 128, maxAgeSeconds: 60 * 60 * 24 * 30 },
       },
     },
     {
-      // Navegaciones (shell HTML): red primero, cae a caché si no hay red.
+      // Navegaciones: red primero, cae a caché si no hay red.
       urlPattern: ({ request, url }) =>
         request.mode === 'navigate' && !url.pathname.startsWith('/api'),
       handler: 'NetworkFirst',
@@ -41,6 +44,16 @@ const withPWA = require('next-pwa')({
         cacheName: 'pages',
         networkTimeoutSeconds: 4,
         expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 },
+      },
+    },
+    {
+      // API (bins, stats, me, leaderboard, reports): responde desde
+      // caché al instante y refresca en segundo plano.
+      urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+      handler: 'StaleWhileRevalidate',
+      options: {
+        cacheName: 'api-cache',
+        expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 },
       },
     },
   ],
